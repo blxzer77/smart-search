@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const { spawn } = require("node:child_process");
+const { spawn, spawnSync } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 
@@ -13,11 +13,24 @@ const pythonPath =
     : path.join(venvDir, "bin", "python");
 
 if (!fs.existsSync(pythonPath)) {
-  console.error("smart-search npm wrapper could not find its Python runtime.");
-  console.error(`Expected: ${pythonPath}`);
-  console.error("Repair it by reinstalling the package:");
-  console.error("  npm install -g @konbakuyomu/smart-search@latest");
-  process.exit(5);
+  const postinstall = path.join(packageRoot, "npm", "scripts", "postinstall.js");
+  console.error("smart-search Python runtime is missing; attempting repair...");
+  const repaired = spawnSync(process.execPath, [postinstall], {
+    cwd: packageRoot,
+    stdio: "inherit",
+    windowsHide: true
+  });
+  if (repaired.error) {
+    console.error(`smart-search runtime repair failed: ${repaired.error.message}`);
+    process.exit(5);
+  }
+  if (repaired.status !== 0 || !fs.existsSync(pythonPath)) {
+    console.error("smart-search npm wrapper could not find its Python runtime.");
+    console.error(`Expected: ${pythonPath}`);
+    console.error("Repair it by reinstalling the package:");
+    console.error("  npm install -g @konbakuyomu/smart-search@next");
+    process.exit(repaired.status || 5);
+  }
 }
 
 const child = spawn(

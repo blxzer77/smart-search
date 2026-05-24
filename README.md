@@ -238,6 +238,8 @@ smart-search anysearch-extract "https://example.com/source" --format json
 smart-search anysearch-batch "AAPL" "RAG papers" --max-results 2 --format json
 ```
 
+For vertical domains, the dotted shorthand `security.cve` is accepted by the CLI and sent to AnySearch as `domain=security` plus `sub_domain=cve`. You can also pass the split form explicitly with `--domain security --sub-domain cve`.
+
 Local config path:
 
 - Windows default: `%LOCALAPPDATA%\smart-search\config.json`.

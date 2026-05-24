@@ -58,6 +58,7 @@ if (!fs.existsSync(pythonPath)) {
 
 run(pythonPath, ["-m", "pip", "install", "--disable-pip-version-check", "-e", ".[dev]"]);
 run(pythonPath, ["-m", "pytest"]);
+run(process.execPath, ["npm/scripts/test-wrapper-repair.js"]);
 run(process.execPath, ["npm/bin/smart-search.js", "--help"]);
 const deepJson = capture(process.execPath, [
   "npm/bin/smart-search.js",

@@ -130,7 +130,8 @@ AnySearch experimental output:
 - HTTP 200 responses with `result.isError=true` must return `ok=false`, `error_type=provider_error`, and no successful source results.
 - Markdown URL/title/snippet candidates should be parsed into `results`, while raw text remains in `content` and `raw_content`.
 - Structured results without URLs must be preserved as raw/structured evidence, not dropped.
-- `anysearch-batch` accepts at most 5 queries and returns `error_type=parameter_error` without sending a request when the limit is exceeded.
+- Dotted vertical domain shorthand such as `security.cve` must be normalized to `domain=security` plus `sub_domain=cve` before calling AnySearch.
+- `anysearch-batch` accepts at most 5 CLI query strings, sends them as JSON-RPC query objects (`{"query": "...", "max_results": N}`), and returns `error_type=parameter_error` without sending a request when the limit is exceeded.
 
 Exa search output includes `ok`, `query`, `search_type`, `results`, `total`, and `elapsed_ms` when successful.
 

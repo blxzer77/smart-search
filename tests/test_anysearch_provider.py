@@ -56,14 +56,14 @@ async def test_anysearch_jsonrpc_success_parses_markdown_and_auth_header(monkeyp
     monkeypatch.setattr("smart_search.providers.anysearch.httpx.AsyncClient", FakeAnySearchClient)
 
     provider = AnySearchProvider("https://api.anysearch.com/mcp", "as-test-secret", timeout=12)
-    data = json.loads(await provider.vertical_search("React hooks", domain="code.doc", sub_domain="react", max_results=2))
+    data = json.loads(await provider.vertical_search("React hooks", domain="code.doc", max_results=2))
 
     assert data["ok"] is True
     assert data["provider"] == "anysearch"
     assert data["tool"] == "search"
     assert data["query"] == "React hooks"
-    assert data["domain"] == "code.doc"
-    assert data["sub_domain"] == "react"
+    assert data["domain"] == "code"
+    assert data["sub_domain"] == "doc"
     assert data["raw_content"].startswith("### 1. React hooks")
     assert data["results"][0]["url"] == "https://react.dev/reference/react"
     assert data["results"][0]["title"] == "React hooks"
@@ -72,6 +72,8 @@ async def test_anysearch_jsonrpc_success_parses_markdown_and_auth_header(monkeyp
     assert call["json"]["method"] == "tools/call"
     assert call["json"]["params"]["name"] == "search"
     assert call["json"]["params"]["arguments"]["max_results"] == 2
+    assert call["json"]["params"]["arguments"]["domain"] == "code"
+    assert call["json"]["params"]["arguments"]["sub_domain"] == "doc"
     assert call["timeout"].read == 12.0
 
 
@@ -197,3 +199,36 @@ async def test_anysearch_batch_limit_returns_parameter_error_without_request(mon
     assert data["error_type"] == "parameter_error"
     assert "max 5" in data["error"]
     assert FakeAnySearchClient.calls == []
+
+
+@pytest.mark.asyncio
+async def test_anysearch_batch_sends_live_compatible_query_objects(monkeypatch):
+    FakeAnySearchClient.response = httpx.Response(
+        200,
+        json={
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "## Query 1: React hooks\n\n### 1. Built-in React Hooks\n- **URL**: https://react.dev/reference/react/hooks",
+                    }
+                ]
+            },
+        },
+        request=httpx.Request("POST", "https://api.anysearch.com/mcp"),
+    )
+    monkeypatch.setattr("smart_search.providers.anysearch.httpx.AsyncClient", FakeAnySearchClient)
+
+    provider = AnySearchProvider("https://api.anysearch.com/mcp", "as-test-secret")
+    data = json.loads(await provider.batch_search(["React hooks", "CVE-2024-3094"], max_results=1))
+
+    assert data["ok"] is True
+    call = FakeAnySearchClient.calls[0]
+    assert call["json"]["params"]["name"] == "batch_search"
+    assert call["json"]["params"]["arguments"]["queries"] == [
+        {"query": "React hooks", "max_results": 1},
+        {"query": "CVE-2024-3094", "max_results": 1},
+    ]
+    assert set(call["json"]["params"]["arguments"]) == {"queries"}

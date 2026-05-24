@@ -66,6 +66,17 @@ def _parse_markdown_results(text: str) -> list[dict[str, str]]:
     return [{"title": url, "url": url, "description": ""} for url in dict.fromkeys(urls)]
 
 
+def _split_domain(domain: str, sub_domain: str = "") -> tuple[str, str]:
+    if sub_domain or "." not in domain:
+        return domain, sub_domain
+    parent, child = domain.split(".", 1)
+    return parent, child
+
+
+def _batch_query_object(query: str, max_results: int) -> dict[str, Any]:
+    return {"query": query, "max_results": max_results}
+
+
 class AnySearchProvider(BaseSearchProvider):
     def __init__(self, api_url: str, api_key: str | None = None, timeout: float = 30.0):
         super().__init__(api_url.rstrip("/"), api_key or "")
@@ -89,6 +100,7 @@ class AnySearchProvider(BaseSearchProvider):
         max_results: int = 5,
     ) -> str:
         arguments: dict[str, Any] = {"query": query, "max_results": max_results}
+        domain, sub_domain = _split_domain(domain, sub_domain)
         if domain:
             arguments["domain"] = domain
         if sub_domain:
@@ -112,7 +124,10 @@ class AnySearchProvider(BaseSearchProvider):
                 ensure_ascii=False,
                 indent=2,
             )
-        return await self.call_tool("batch_search", {"queries": queries, "max_results": max_results})
+        return await self.call_tool(
+            "batch_search",
+            {"queries": [_batch_query_object(query, max_results) for query in queries]},
+        )
 
     async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
         start = time.time()

@@ -254,6 +254,8 @@ smart-search anysearch-extract "https://example.com/source" --format json
 smart-search anysearch-batch "AAPL" "RAG papers" --max-results 2 --format json
 ```
 
+垂直域支持点号简写：`security.cve` 会由 CLI 发成 `domain=security` 加 `sub_domain=cve`。也可以显式写成 `--domain security --sub-domain cve`。
+
 本机配置文件位置：
 
 - Windows 默认：`%LOCALAPPDATA%\smart-search\config.json`。
