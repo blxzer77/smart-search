@@ -60,15 +60,25 @@ run(pythonPath, ["-m", "pip", "install", "--disable-pip-version-check", "-e", ".
 run(pythonPath, ["-m", "pytest"]);
 run(process.execPath, ["npm/scripts/test-wrapper-repair.js"]);
 run(process.execPath, ["npm/bin/smart-search.js", "--help"]);
-const deepJson = capture(process.execPath, [
+const utf8Probe = spawnSync(process.execPath, [
   "npm/bin/smart-search.js",
-  "deep",
+  "search",
   "深度搜索一下最近的比特币行情",
   "--format",
   "json"
-]);
-const deepPlan = JSON.parse(deepJson);
-if (deepPlan.question !== "深度搜索一下最近的比特币行情") {
+], {
+  cwd: packageRoot,
+  encoding: "utf8",
+  windowsHide: true,
+  env: { ...process.env, OPENAI_COMPATIBLE_API_KEY: "" }
+});
+let utf8Query = "";
+try {
+  utf8Query = JSON.parse(utf8Probe.stdout || "{}").query;
+} catch (err) {
+  utf8Query = "";
+}
+if (utf8Query !== "深度搜索一下最近的比特币行情") {
   console.error("npm wrapper must preserve non-ASCII CLI arguments and JSON output as UTF-8.");
   process.exit(1);
 }
