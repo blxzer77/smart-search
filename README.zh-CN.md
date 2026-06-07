@@ -88,7 +88,7 @@ smart-search research "深度搜索一下最近的比特币行情" --budget deep
 | --- | --- | --- | --- |
 | `main_search` | `search` | OpenAI-compatible Chat Completions | 综合回答、快速搜索、初步总结 |
 | `docs_search` | `context7-library`、`context7-docs`、`exa-search` | Context7、Exa | 官方文档、SDK、API、框架/库文档 |
-| `web_search` | `zhipu-search`、`search` 内部意图补强 | 智谱 Web Search API、Tavily、Firecrawl | 中文、国内、时效、域名过滤、补充来源 |
+| `web_search` | `zhipu-search`、`search` 内部中文/时效意图补强 | 智谱 Web Search API、Tavily、Firecrawl | 中文、国内、时效、域名过滤、补充来源 |
 | `web_fetch` | `fetch` | Tavily、Jina Reader、Firecrawl | 已知 URL 正文抓取、证据提取 |
 | `site_map` | `map` | Tavily | 文档站、产品站、目录型站点结构 |
 | `research_executor` | `research` / `rs` | 按 capability 注册的 provider | live 深度研究执行：规划、发现、抓取/读取、gap check、仅基于证据综合 |
@@ -118,7 +118,9 @@ Jina Reader 只属于 `web_fetch`，不是通用搜索 provider。只有配置 `
 | `extra_sources` | Tavily / Firecrawl 等额外发现的候选来源 |
 | `source_warning` | 来源和回答之间可能存在的证据边界提醒 |
 
-`extra_sources` 只是候选来源，不等于自动事实校验。新闻、政策、财经、医疗、严肃评测、工具选型等高风险问题，建议先发现来源，再 `fetch` 关键网页正文，最后只基于抓到的正文写结论。
+`search` 内部的自动 `web_search` 补强只保留给中文、国内、时效意图；`--validation strict` 不再自动路由 `web_search`。没有主回答来源、docs、fetch 或显式来源证据的 strict 常青查询可能返回 `evidence_error`；需要可引用证据时，用 `--extra-sources N`、`zhipu-search` / `exa-search` 这类 source-first 命令，或直接 `fetch` 关键 URL。docs 补强继续保持显式 docs/API/库/框架关键词触发。
+
+`extra_sources` 是通过 `--extra-sources N` 显式请求的候选来源，默认是 `0`，不等于自动事实校验。新闻、政策、财经、医疗、严肃评测、工具选型等高风险问题，建议先发现来源，再 `fetch` 关键网页正文，最后只基于抓到的正文写结论。
 
 搜索引擎选择速记：先用 `search` 做宽泛探索和综合；想让 CLI 执行完整证据流时用 `research`；中文、国内、政策、公告、当前新闻优先补 `zhipu-search`；库/API/框架文档优先用 Context7；官方域名、论文、产品页、可信站点和低噪声发现再用 Exa；Tavily/Firecrawl 通过 `search --extra-sources` 做横向候选，通过 `fetch` 做正文证据；Jina 用于已知 URL 正文抓取。
 

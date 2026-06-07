@@ -701,7 +701,7 @@ async def test_docs_query_routes_docs_without_current_web_search(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_strict_still_uses_web_search_without_current_keyword(monkeypatch):
+async def test_strict_evergreen_query_does_not_auto_use_web_search(monkeypatch):
     monkeypatch.setenv("OPENAI_COMPATIBLE_API_URL", "https://relay.example.com/v1")
     monkeypatch.setenv("OPENAI_COMPATIBLE_API_KEY", "relay-test-secret")
     monkeypatch.setenv("EXA_API_KEY", "exa-test-secret")
@@ -710,18 +710,19 @@ async def test_strict_still_uses_web_search_without_current_keyword(monkeypatch)
     async def fake_search(self, query, platform="", ctx=None):
         return "Strict answer."
 
-    async def fake_tavily_search(query, max_results=6):
-        return [{"url": "https://strict.example.com", "title": "Strict", "content": "evidence"}]
+    async def should_not_run_web_search(query, count=5, providers="auto", fallback="auto"):
+        raise AssertionError("strict evergreen queries should not trigger current web_search")
 
     monkeypatch.setattr(service.OpenAICompatibleSearchProvider, "search", fake_search)
-    monkeypatch.setattr(service, "call_tavily_search", fake_tavily_search)
+    monkeypatch.setattr(service, "_run_web_search_fallback", should_not_run_web_search)
 
     result = await service.search("plain evergreen query", validation="strict")
 
-    assert result["ok"] is True
+    assert result["ok"] is False
+    assert result["error_type"] == "evidence_error"
     assert result["routing_decision"]["web_current_intent"] is False
-    assert "web_search" in result["routing_decision"]["supplemental_paths"]
-    assert any(attempt["capability"] == "web_search" and attempt["status"] == "ok" for attempt in result["provider_attempts"])
+    assert "web_search" not in result["routing_decision"]["supplemental_paths"]
+    assert all(attempt["capability"] != "web_search" for attempt in result["provider_attempts"])
 
 
 @pytest.mark.asyncio

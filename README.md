@@ -95,7 +95,7 @@ smart-search research "Deep research recent Bitcoin market movement" --budget de
 | --- | --- | --- | --- |
 | `main_search` | `search` | OpenAI-compatible Chat Completions | Broad answer generation and synthesis |
 | `docs_search` | `context7-library`, `context7-docs`, `exa-search` | Context7, Exa | Official docs, SDKs, APIs, framework/library evidence |
-| `web_search` | `zhipu-search`, intent-routed reinforcement inside `search` | Zhipu Web Search API, Tavily, Firecrawl | Chinese, domestic, current, domain-filtered, or supplementary web discovery |
+| `web_search` | `zhipu-search`, Chinese/current intent-routed reinforcement inside `search` | Zhipu Web Search API, Tavily, Firecrawl | Chinese, domestic, current, domain-filtered, or supplementary web discovery |
 | `web_fetch` | `fetch` | Tavily, Jina Reader, Firecrawl | Exact URL content extraction for evidence |
 | `site_map` | `map` | Tavily | Site/documentation structure discovery |
 | `research_executor` | `research` / `rs` | Registered providers by capability | Live staged research: plan, discover, fetch/read, gap check, evidence-only synthesis |
@@ -113,7 +113,9 @@ Jina Reader is a `web_fetch` provider only. `JINA_API_KEY` is required before Ji
 
 The CLI exposes observability fields such as `routing_decision`, `provider_attempts`, `providers_used`, `fallback_used`, `primary_sources`, `extra_sources`, and `source_warning`.
 
-`extra_sources` are discovery candidates. For high-risk claims, news, policy, finance, health, selection decisions, and serious reviews, fetch key pages first and cite fetched text rather than treating a broad search answer as proof.
+Inside `search`, automatic `web_search` reinforcement is reserved for Chinese, domestic, and current intent; `--validation strict` does not automatically route `web_search`. Strict evergreen queries without primary, docs, fetch, or explicit source evidence can return `evidence_error`; use `--extra-sources N`, source-first commands such as `zhipu-search` / `exa-search`, or `fetch` when citable evidence is required. Docs supplemental routing stays keyword-based for explicit docs/API/library/framework intent.
+
+`extra_sources` are explicit discovery candidates from `--extra-sources N`, which defaults to `0`. For high-risk claims, news, policy, finance, health, selection decisions, and serious reviews, fetch key pages first and cite fetched text rather than treating a broad search answer as proof.
 
 Routing rule of thumb: start with `search` for broad discovery and synthesis; use `research` when you want the CLI to execute the deeper evidence workflow; use Zhipu Web Search API for Chinese, domestic, policy, announcements, and current-news searches; use Context7 first for library/API/framework docs; use Exa for official domains, papers, product pages, trusted sites, and low-noise discovery; use Tavily/Firecrawl through `search --extra-sources` for horizontal candidates and through `fetch` for page evidence; use Jina for known-URL extraction.
 

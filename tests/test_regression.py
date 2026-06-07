@@ -81,6 +81,9 @@ def test_deep_research_skill_contract_public_and_packaged_assets_match():
         "does not depend on an MCP session",
         "SMART_SEARCH_RESEARCH_PREFERRED_PROVIDERS",
         "provider advantage routing",
+        "`search --validation strict` does not automatically route `web_search`",
+        "`search` automatically routes `web_search` only for Chinese, domestic, or current intent",
+        "Docs/API/library routing stays explicit keyword intent-based",
     ]
     for marker in required_markers:
         assert marker in public_text
@@ -235,6 +238,47 @@ def test_deep_research_shared_skill_files_are_synchronized():
         assert (PUBLIC_SKILL_DIR / relative).read_text(encoding="utf-8") == (
             PACKAGED_SKILL_DIR / relative
         ).read_text(encoding="utf-8")
+
+
+def test_search_routing_contract_documents_strict_web_search_boundary():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    readme_zh = (ROOT / "README.zh-CN.md").read_text(encoding="utf-8")
+    public_text = _read_skill_tree(PUBLIC_SKILL_DIR)
+    packaged_text = _read_skill_tree(PACKAGED_SKILL_DIR)
+    public_contract = (PUBLIC_SKILL_DIR / "references" / "cli-contract.md").read_text(encoding="utf-8")
+    packaged_contract = (PACKAGED_SKILL_DIR / "references" / "cli-contract.md").read_text(encoding="utf-8")
+
+    english_markers = [
+        "`--validation strict` does not automatically route `web_search`",
+        "Strict evergreen queries without primary, docs, fetch, or explicit source evidence",
+        "source-first commands such as `zhipu-search` / `exa-search`",
+        "Docs supplemental routing stays keyword-based for explicit docs/API/library/framework intent",
+        "`extra_sources` are explicit discovery candidates from `--extra-sources N`, which defaults to `0`",
+    ]
+    for marker in english_markers:
+        assert marker in readme
+
+    zh_markers = [
+        "`--validation strict` 不再自动路由 `web_search`",
+        "strict 常青查询可能返回 `evidence_error`",
+        "`--extra-sources N`",
+        "docs 补强继续保持显式 docs/API/库/框架关键词触发",
+        "默认是 `0`",
+    ]
+    for marker in zh_markers:
+        assert marker in readme_zh
+
+    shipped_markers = [
+        "`search --validation strict` does not automatically route `web_search`",
+        "`search` automatically routes `web_search` only for Chinese, domestic, or current intent",
+        "explicit keyword-based docs/API/library/framework intent",
+        "default `extra_sources` is `0`",
+    ]
+    for marker in shipped_markers:
+        assert marker in public_text
+        assert marker in packaged_text
+        assert marker in public_contract
+        assert marker in packaged_contract
 
 
 def test_zhipu_setup_contract_public_and_packaged_assets_match():

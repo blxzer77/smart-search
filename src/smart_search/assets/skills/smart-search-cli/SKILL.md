@@ -159,9 +159,10 @@ smart-search research "https://example.com/source" --format json
 - The standard minimum profile requires one configured provider in each of `main_search`, `docs_search`, and fetch capability. Missing required capabilities should be treated as a hard configuration failure.
 - Jina Reader is `web_fetch` only, not a general search provider. `JINA_API_KEY` is required before Jina satisfies the standard minimum profile; anonymous `r.jina.ai` is explicit/experimental fetch behavior.
 - `search` exposes `--validation fast|balanced|strict`, `--fallback auto|off`, and `--providers auto|CSV`. Default validation is `balanced`; fallback only happens within the same capability.
-- Docs/API/library routing should prefer Context7 first. Exa is for official-domain or low-noise supplemental discovery, not the default docs answer route.
-- Zhipu Web Search API is a general web-search reinforcement and same-capability fallback for Chinese, domestic, current, or domain-filtered source discovery.
-- `search` calls Tavily and/or Firecrawl only when `--extra-sources N` is greater than 0.
+- `search --validation strict` does not automatically route `web_search`. Strict evergreen queries without primary, docs, fetch, or explicit source evidence can fail with `evidence_error`; use `--extra-sources N`, source-first commands such as `zhipu-search` / `exa-search`, or `fetch` when citable evidence is required.
+- `search` automatically routes `web_search` only for Chinese, domestic, or current intent. Zhipu Web Search API remains the first `web_search` provider when that route is selected, followed by same-capability Tavily / Firecrawl source search when configured.
+- Docs/API/library routing stays explicit keyword intent-based and should prefer Context7 first. Exa is for official-domain or low-noise supplemental discovery, not the default docs answer route.
+- `search` calls Tavily and/or Firecrawl for `extra_sources` only when `--extra-sources N` is greater than 0.
 - With both Tavily and Firecrawl configured, `search --extra-sources N` splits extra sources between them, with Tavily receiving about 60% and Firecrawl the rest.
 - Search JSON separates `primary_sources`, `extra_sources`, and backward-compatible merged `sources`.
 - `primary_sources` are extracted from the primary model answer. `extra_sources` are parallel Tavily / Firecrawl candidates and are not automatically used to verify `content`.

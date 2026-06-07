@@ -262,10 +262,11 @@ Agent timeout handling contract:
 - Jina satisfies fetch capability only when `JINA_API_KEY` is configured. Anonymous Jina Reader does not satisfy `standard`.
 - Same-capability fallback is allowed; cross-capability fallback is not. Context7 is not used for unrelated broad web queries, and page extraction providers are not used as docs search providers.
 - `main_search`: OpenAI-compatible Chat Completions.
-- `web_search`: Zhipu Web Search API first when routed in, then Tavily / Firecrawl source search when configured.
-- `docs_search`: Context7 first for library/API/docs intent, then Exa for official-domain, paper, product-page, trusted-site, or low-noise supplemental discovery.
+- `web_search`: `search` automatically routes `web_search` only for Chinese, domestic, or current intent. Zhipu Web Search API is first when routed in, then Tavily / Firecrawl source search when configured.
+- `docs_search`: explicit keyword-based docs/API/library/framework intent. Context7 is first for library/API/docs intent, then Exa for official-domain, paper, product-page, trusted-site, or low-noise supplemental discovery.
 - Fetch capability: Tavily first, then Jina Reader with `JINA_API_KEY`, then Firecrawl.
-- `search` calls Tavily and/or Firecrawl only when `--extra-sources` is greater than 0.
+- `search --validation strict` does not automatically route `web_search`. Strict evergreen queries without primary, docs, fetch, or explicit source evidence can fail with `evidence_error`; use `--extra-sources N`, source-first commands such as `zhipu-search` / `exa-search`, or `fetch` when citable evidence is required.
+- `search` calls Tavily and/or Firecrawl for `extra_sources` only when `--extra-sources` is greater than 0.
 - If both Tavily and Firecrawl are configured, `search --extra-sources N` gives about 60% of extra source slots to Tavily and the remainder to Firecrawl.
 - `extra_sources` are retrieved in parallel and are not automatically used by the primary model to verify its answer.
 - `fetch` and known-URL `search "https://..."` use the same fetch fallback chain.
@@ -282,7 +283,7 @@ Agent timeout handling contract:
 ## Routing Heuristics
 
 - Use `exa-search --include-domains` when official documentation domains are known.
-- Use `context7-library` / `context7-docs` for docs/API/SDK/library/framework intent when Context7 is configured.
+- Use `context7-library` / `context7-docs` for explicit docs/API/SDK/library/framework intent when Context7 is configured.
 - Use `zhipu-search` for Chinese, domestic, current, or domain-filtered source discovery when Zhipu is configured.
 - Use `exa-search --start-published-date` for recency-constrained source discovery.
 - Use `exa-similar` when a known good page is available and adjacent sources are needed.
@@ -290,6 +291,7 @@ Agent timeout handling contract:
 - Use `fetch --format markdown` or `fetch --format content` for user-supplied URLs or when exact page text matters.
 - Use `map` before fetching many pages from a documentation site.
 - Keep `search --extra-sources` small (`1` to `3`) unless broad coverage is requested.
+- Treat `search --extra-sources N` as explicit candidate discovery; default `extra_sources` is `0`, and candidates still need `fetch` before claim-level citation.
 - For current news or high-risk claims, prefer source discovery plus `fetch`; do not treat broad `search.content` plus `extra_sources` as claim-level verification.
 
 ## Maintenance Guardrails

@@ -1806,7 +1806,7 @@ async def search(
     supplemental_paths: list[str] = []
     if docs_intent:
         supplemental_paths.append("docs_search")
-    if web_current_intent or validation_level == "strict":
+    if web_current_intent:
         supplemental_paths.append("web_search")
     if fetch_intent:
         supplemental_paths.append("web_fetch")
@@ -1905,7 +1905,7 @@ async def search(
             docs_sources, docs_attempts = await _run_docs_search_fallback(query, providers=providers, fallback=fallback_mode)
             provider_attempts.extend(docs_attempts)
             supplemental_sources.extend(docs_sources)
-        if web_current_intent or validation_level == "strict":
+        if web_current_intent:
             web_sources, web_attempts = await _run_web_search_fallback(query, count=max(1, extra_sources or 3), providers=providers, fallback=fallback_mode)
             provider_attempts.extend(web_attempts)
             supplemental_sources.extend(web_sources)
