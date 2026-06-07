@@ -945,7 +945,7 @@ def build_deep_research_plan(query: str, budget: str = "standard", evidence_dir:
     return {
         "ok": True,
         "mode": "deep_research",
-        "query_mode": "deep",
+        "query_mode": "research",
         "question": question,
         "trigger_source": "explicit_cli",
         "difficulty": difficulty,
@@ -957,7 +957,7 @@ def build_deep_research_plan(query: str, budget: str = "standard", evidence_dir:
             "tool": "doctor",
             "command": "smart-search doctor --format json",
             "when": "configuration or provider availability is uncertain",
-            "executed_by_deep_command": False,
+            "executed_during_planning": False,
         },
         "steps": steps,
         "gap_check": {
@@ -968,8 +968,8 @@ def build_deep_research_plan(query: str, budget: str = "standard", evidence_dir:
         "final_answer_policy": "cite fetched evidence, list unverified candidates, and include key commands",
         "usage_boundary": {
             "search": "smart-search search runs live fast/broad search immediately.",
-            "deep": "smart-search deep is an offline planner; it does not execute provider calls or fetch pages.",
-            "execution": "An AI agent or user executes the listed steps with existing CLI commands, then performs gap_check.",
+            "research": "smart-search research builds this plan internally, then runs the staged discover/fetch/synthesis workflow.",
+            "execution": "research executes the listed steps with existing CLI commands, then performs gap_check.",
         },
         "allowed_tools": sorted(DEEP_ALLOWED_TOOLS),
         "evidence_dir": evidence_root,

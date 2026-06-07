@@ -1016,9 +1016,8 @@ def _write_setup_status(status: dict[str, Any], lang: str, *, final: bool = Fals
         "docs_search": _t(lang, "docs_search 文档搜索", "docs_search documentation search"),
         "web_fetch": _t(lang, "web_fetch 网页抓取", "web_fetch page fetch"),
         "web_search": _t(lang, "web_search 网页补强", "web_search web reinforcement"),
-        "vertical_search": _t(lang, "vertical_search 垂直搜索", "vertical_search vertical search"),
     }
-    for capability in ("main_search", "docs_search", "web_fetch", "web_search", "vertical_search"):
+    for capability in ("main_search", "docs_search", "web_fetch", "web_search"):
         item = status.get(capability, {})
         configured = item.get("configured") or []
         configured_text = ", ".join(_display_provider(provider, lang) for provider in configured)
@@ -1805,8 +1804,8 @@ def _run_setup(args: argparse.Namespace) -> int:
             _write_stderr(
                 _t(
                     lang,
-                    "\n下一步建议:\n  smart-search doctor --format json\n  smart-search smoke --mock --format json\n",
-                    "\nNext steps:\n  smart-search doctor --format json\n  smart-search smoke --mock --format json\n",
+                    "\n下一步建议:\n  smart-search doctor --format json\n",
+                    "\nNext steps:\n  smart-search doctor --format json\n",
                 )
             )
         data["minimum_profile_ok"] = not missing

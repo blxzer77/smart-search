@@ -77,8 +77,6 @@ def test_deep_research_skill_contract_public_and_packaged_assets_match():
         "fixed topic recipe",
         "深度搜索一下最近的比特币行情",
         "C:\\tmp\\smart-search-evidence",
-        "public live executor entrypoint",
-        "not an executor",
         "does not change default `smart-search search`",
         "does not depend on an MCP session",
         "SMART_SEARCH_RESEARCH_PREFERRED_PROVIDERS",
@@ -348,3 +346,29 @@ def test_streaming_contract_public_and_packaged_assets_match():
     ]
     for marker in zh_required_markers:
         assert marker in readme_zh
+
+
+def test_deleted_features_absent_from_shipped_assets():
+    """Guard: trimmed providers/commands/keys must not reappear in shipped docs/assets."""
+    public_text = _read_skill_tree(PUBLIC_SKILL_DIR)
+    packaged_text = _read_skill_tree(PACKAGED_SKILL_DIR)
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    readme_zh = (ROOT / "README.zh-CN.md").read_text(encoding="utf-8")
+    corpus = "\n".join([public_text, packaged_text, readme, readme_zh])
+
+    forbidden = [
+        "xai-responses",
+        "XAI_",
+        "anysearch",
+        "ANYSEARCH",
+        "zhipu-mcp",
+        "ZHIPU_MCP",
+        "smart-search smoke",
+        "smart-search regression",
+        "smart-search model",
+        "smart-search skills",
+        "smart-search deep ",
+        "executed_by_deep_command",
+    ]
+    for token in forbidden:
+        assert token not in corpus, f"deleted-feature reference leaked into shipped docs/assets: {token}"

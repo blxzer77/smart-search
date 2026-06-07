@@ -138,12 +138,12 @@ def test_deep_research_plan_current_market_is_offline_and_fetch_before_claim(mon
 
     assert result["ok"] is True
     assert result["mode"] == "deep_research"
-    assert result["query_mode"] == "deep"
+    assert result["query_mode"] == "research"
     assert result["trigger_source"] == "explicit_cli"
     assert result["intent_signals"]["recency_requirement"] in {"recent", "current"}
     assert result["intent_signals"]["claim_risk"] == "high"
     assert result["evidence_policy"] == "fetch_before_claim"
-    assert result["preflight"]["executed_by_deep_command"] is False
+    assert result["preflight"]["executed_during_planning"] is False
     tools = {step["tool"] for step in result["steps"]}
     assert {"search", "fetch"} <= tools
     assert "zhipu-search" in tools
