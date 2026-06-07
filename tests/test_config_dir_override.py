@@ -114,12 +114,12 @@ def test_env_dir_also_governs_log_dir_parent(monkeypatch, tmp_path):
     assert not (target / "logs").exists()
 
 
-def test_tavily_timeout_defaults_to_thirty_seconds(monkeypatch):
+def test_tavily_timeout_defaults_to_sixty_seconds(monkeypatch):
     monkeypatch.delenv("TAVILY_TIMEOUT_SECONDS", raising=False)
     config = _fresh_config_file(monkeypatch)
-    assert config.tavily_timeout == 30.0
+    assert config.tavily_timeout == 60.0
     info = config.get_config_info()
-    assert info["TAVILY_TIMEOUT_SECONDS"] == 30.0
+    assert info["TAVILY_TIMEOUT_SECONDS"] == 60.0
     assert info["config_sources"]["TAVILY_TIMEOUT_SECONDS"] == "default"
 
 

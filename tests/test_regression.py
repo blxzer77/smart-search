@@ -68,11 +68,8 @@ def test_deep_research_skill_contract_public_and_packaged_assets_match():
         "capability_plan",
         "gap_check",
         "fetch_before_claim",
-        "smart-search skills status",
-        "smart-search skills update",
         "Do not treat Exa as the universal second hop",
         "Prefer Context7 before Exa",
-        "smart-search deep",
         "decomposition",
         "usage_boundary",
         "search`, `exa-search`, `exa-similar`, `zhipu-search`, `context7-library`, `context7-docs`, `fetch`, and `map`",
@@ -80,8 +77,6 @@ def test_deep_research_skill_contract_public_and_packaged_assets_match():
         "fixed topic recipe",
         "深度搜索一下最近的比特币行情",
         "C:\\tmp\\smart-search-evidence",
-        "mock-full plus live-limited",
-        "public planner entrypoint",
         "public live executor entrypoint",
         "not an executor",
         "does not change default `smart-search search`",
@@ -99,11 +94,10 @@ def test_deep_research_cli_contract_documents_plan_and_smoke_matrix():
     packaged_contract = (PACKAGED_SKILL_DIR / "references" / "cli-contract.md").read_text(encoding="utf-8")
     required_markers = [
         "Deep Research Skill Contract",
-        "`smart-search deep` is the public offline planner command",
         "`smart-search research` is the public live executor command",
         "must not change default `smart-search search` behavior",
         "`mode`: always `deep_research`",
-        "`query_mode`: always `deep`",
+        "`query_mode`: always `research`",
         "`question`: the user's research question",
         "`trigger_source`: usually `explicit_cli`",
         "`difficulty`: `standard` or `high`",
@@ -113,23 +107,14 @@ def test_deep_research_cli_contract_documents_plan_and_smoke_matrix():
         "`evidence_policy`: default `fetch_before_claim`",
         "`preflight`: `doctor` guidance",
         "`steps`: ordered CLI command steps",
-        "`gap_check`: how the agent verifies",
+        "`gap_check`: how the executor verifies",
         "`final_answer_policy`: how to cite fetched evidence",
-        "`usage_boundary`: user-facing distinction",
         "Allowed `tool` values are `search`, `exa-search`, `exa-similar`, `zhipu-search`, `context7-library`, `context7-docs`, `fetch`, and `map`",
         "`doctor` is a `preflight` action, not a `steps[]` item",
         "must not require fixed topic recipe ids",
         "fixed topic recipe ids are not required schema",
-        "Mock-full coverage should cover trigger phrases",
         "research provider advantage routing",
         "`research --fallback auto` permits same-capability fallback",
-        "Live-limited coverage should run `doctor`, one broad `search`, one `exa-search`, and one `fetch`",
-        "`smart-search skills status --targets codex,claude,cursor,hermes --format json`",
-        "`smart-search skills update --targets codex,claude,cursor,hermes --format json`",
-        "Status values are `missing`, `up_to_date`, `stale`, `extra_files`, and",
-        "must not change provider keys, run setup",
-        "Prefer `skills status` and",
-        "rerun the affected smoke until it passes or is proven to be an external provider blocker",
         "Budget limits must not break evidence policy",
         "Even `--budget quick` plans must retain at least one `fetch` step",
         "`steps[].command` and `steps[].output_path` are one contract",
@@ -189,12 +174,8 @@ def test_deep_research_readme_documents_capability_orchestration():
         "`decomposition`",
         "`capability_plan`",
         "`gap_check`",
-        "`usage_boundary`",
-        "smart-search deep",
         "`exa-similar`",
         "`context7-library`",
-        "smart-search skills status",
-        "smart-search skills update",
         "`doctor` is preflight, not a research step",
         "Unsupported key claims must be fetched or downgraded to unverified candidates",
     ]
@@ -207,13 +188,9 @@ def test_deep_research_readme_documents_capability_orchestration():
         "`decomposition`",
         "`capability_plan`",
         "`gap_check`",
-        "`usage_boundary`",
-        "smart-search deep",
         "`exa-similar`",
         "`context7-library`",
-        "smart-search skills status",
-        "smart-search skills update",
-        "`doctor` 只是配置预检",
+        "`doctor` 是 preflight 配置预检",
         "没有 fetch 的来源标为未验证候选",
     ]
     for marker in english_markers:
@@ -234,8 +211,6 @@ def test_readme_language_split_and_provider_links_are_documented():
     assert "README.zh-CN.md" in package_json
 
     provider_markers = [
-        "https://docs.x.ai/docs",
-        "https://console.x.ai/team/default/api-keys",
         "https://platform.openai.com/docs",
         "https://platform.openai.com/api-keys",
         "https://docs.exa.ai/",
@@ -312,7 +287,7 @@ def test_zhipu_setup_contract_public_and_packaged_assets_match():
         assert marker in packaged_contract
 
 
-def test_jina_and_zhipu_mcp_contract_public_and_packaged_assets_match():
+def test_jina_contract_public_and_packaged_assets_match():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     readme_zh = (ROOT / "README.zh-CN.md").read_text(encoding="utf-8")
     public_text = _read_skill_tree(PUBLIC_SKILL_DIR)
@@ -326,19 +301,6 @@ def test_jina_and_zhipu_mcp_contract_public_and_packaged_assets_match():
         "JINA_RESPOND_WITH",
         "Jina Reader is `web_fetch` only",
         "Anonymous Jina Reader calls",
-        "ZHIPU_MCP_API_KEY",
-        "ZHIPU_MCP_SEARCH_API_URL",
-        "ZHIPU_MCP_READER_API_URL",
-        "ZHIPU_MCP_ZREAD_API_URL",
-        "web_search_prime",
-        "webReader",
-        "search_doc",
-        "get_repo_structure",
-        "read_file",
-        "Remote MCP",
-        "Do not route it through the existing `/paas/v4/web_search`",
-        "Coding Plan entitlement",
-        "does not affect the standard minimum profile",
     ]
     for marker in required_markers:
         assert marker in public_text
@@ -348,30 +310,20 @@ def test_jina_and_zhipu_mcp_contract_public_and_packaged_assets_match():
 
     readme_markers = [
         "JINA_API_KEY",
-        "Zhipu Coding Plan Remote MCP",
-        "zhipu-mcp-search",
-        "zhipu-mcp-reader",
-        "not mixed into the existing `/paas/v4/web_search`",
         "Jina Reader is not a general search provider",
-        "A normal `ZHIPU_API_KEY` for Web Search API does not prove `zhipu-mcp-search` or zread access",
     ]
     for marker in readme_markers:
         assert marker in readme
 
     zh_markers = [
         "JINA_API_KEY",
-        "智谱 Coding Plan Remote MCP",
-        "zhipu-mcp-search",
-        "zhipu-mcp-reader",
-        "不会混进现有 `/paas/v4/web_search`",
         "Jina Reader 不是通用搜索 provider",
-        "普通 `ZHIPU_API_KEY` 能用 Web Search API，不代表能用 `zhipu-mcp-search` 或 zread",
     ]
     for marker in zh_markers:
         assert marker in readme_zh
 
 
-def test_streaming_and_anysearch_contract_public_and_packaged_assets_match():
+def test_streaming_contract_public_and_packaged_assets_match():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     readme_zh = (ROOT / "README.zh-CN.md").read_text(encoding="utf-8")
     public_text = _read_skill_tree(PUBLIC_SKILL_DIR)
@@ -383,16 +335,6 @@ def test_streaming_and_anysearch_contract_public_and_packaged_assets_match():
         "OPENAI_COMPATIBLE_STREAM",
         "--stream",
         "--no-stream",
-        "ANYSEARCH_API_URL",
-        "ANYSEARCH_API_KEY",
-        "ANYSEARCH_TIMEOUT_SECONDS",
-        "anysearch-domains",
-        "anysearch-search",
-        "anysearch-extract",
-        "anysearch-batch",
-        "vertical_search",
-        "not part of the `web_search` fallback",
-        "not required by the `standard` minimum profile",
     ]
     for marker in required_markers:
         assert marker in readme
@@ -403,14 +345,6 @@ def test_streaming_and_anysearch_contract_public_and_packaged_assets_match():
 
     zh_required_markers = [
         "OPENAI_COMPATIBLE_STREAM",
-        "ANYSEARCH_API_URL",
-        "ANYSEARCH_API_KEY",
-        "ANYSEARCH_TIMEOUT_SECONDS",
-        "anysearch-domains",
-        "anysearch-search",
-        "vertical_search",
-        "不进入 `web_search` 兜底链",
-        "不是 `standard` 最低配置要求",
     ]
     for marker in zh_required_markers:
         assert marker in readme_zh

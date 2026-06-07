@@ -11,14 +11,6 @@ from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
 from . import service
-from .skill_installer import (
-    DEFAULT_SKILL_TARGET_IDS,
-    SKILL_TARGETS,
-    SkillInstallError,
-    install_skill_targets,
-    parse_skill_targets,
-    status_skill_targets,
-)
 
 
 EXIT_OK = 0
@@ -34,27 +26,13 @@ COMMAND_ALIASES = {
     "exa-search": ["exa", "x"],
     "exa-similar": ["xs"],
     "zhipu-search": ["z", "zp"],
-    "zhipu-mcp-search": ["zmcp-search"],
-    "zhipu-mcp-reader": ["zmcp-reader"],
-    "zhipu-mcp-search-doc": ["zmcp-doc"],
-    "zhipu-mcp-repo-structure": ["zmcp-tree"],
-    "zhipu-mcp-read-file": ["zmcp-file"],
-    "anysearch-domains": ["as-domains"],
-    "anysearch-search": ["as-search", "as"],
-    "anysearch-extract": ["as-extract"],
-    "anysearch-batch": ["as-batch"],
     "context7-library": ["c7", "ctx7"],
     "context7-docs": ["c7d", "c7docs", "ctx7-docs"],
-    "deep": ["dr"],
     "research": ["rs"],
-    "smoke": ["sm"],
     "doctor": ["d"],
     "diagnose": ["diag"],
-    "model": ["mdl"],
     "setup": ["init"],
-    "skills": ["skill"],
     "config": ["cfg"],
-    "regression": ["reg"],
 }
 
 CONFIG_COMMAND_ALIASES = {
@@ -62,16 +40,6 @@ CONFIG_COMMAND_ALIASES = {
     "list": ["ls", "l"],
     "set": ["s"],
     "unset": ["rm", "u"],
-}
-
-MODEL_COMMAND_ALIASES = {
-    "set": ["s"],
-    "current": ["cur", "c"],
-}
-
-SKILLS_COMMAND_ALIASES = {
-    "status": ["st"],
-    "update": ["up"],
 }
 
 
@@ -444,7 +412,6 @@ def _format_doctor_markdown(data: dict[str, Any]) -> str:
         ("jina", data.get("jina_connection_test") or {}),
         ("firecrawl", data.get("firecrawl_connection_test") or {}),
         ("zhipu", data.get("zhipu_connection_test") or {}),
-        ("zhipu-mcp", data.get("zhipu_mcp_connection_test") or {}),
         ("context7", data.get("context7_connection_test") or {}),
     ]
     rows = []
@@ -507,34 +474,6 @@ def _provider_detail_lines(title: str, provider_tests: dict[str, Any]) -> list[s
     if not details:
         return []
     return ["", f"## {title}", *details]
-
-
-def _format_smoke_markdown(data: dict[str, Any]) -> str:
-    cases = data.get("cases") or []
-    failed = data.get("failed_cases") or []
-    degraded = data.get("degraded_cases") or []
-    lines = [
-        "# Smart Search Smoke",
-        "",
-        f"Mode: `{data.get('mode', '')}`",
-        f"Overall: {_status_label(data.get('ok'))}",
-        f"Cases: {len(cases)} total, {len(failed)} failed, {len(degraded)} degraded",
-    ]
-    if cases:
-        rows = []
-        for case in cases:
-            rows.append(
-                [
-                    case.get("name", ""),
-                    _status_label(case.get("ok")),
-                    case.get("severity", ""),
-                    case.get("error") or case.get("error_type") or case.get("skipped", ""),
-                ]
-            )
-        lines.extend(["", "## Cases"])
-        lines.extend(_markdown_table(["Case", "Status", "Severity", "Details"], rows))
-    lines.extend(_error_lines(data))
-    return "\n".join(lines).strip() + "\n"
 
 
 def _format_diagnose_markdown(data: dict[str, Any]) -> str:
@@ -607,24 +546,6 @@ def _format_config_markdown(data: dict[str, Any]) -> str:
     return "\n".join(lines).strip() + "\n"
 
 
-def _format_model_markdown(data: dict[str, Any]) -> str:
-    lines = ["# Smart Search Model", "", f"Status: {_status_label(data.get('ok'))}"]
-    rows = []
-    if data.get("xai_model"):
-        rows.append(["xai-responses", data.get("xai_model")])
-    if data.get("openai_compatible_model"):
-        rows.append(["openai-compatible", data.get("openai_compatible_model")])
-    if data.get("current_model"):
-        rows.append(["current", data.get("current_model")])
-    if rows:
-        lines.extend(["", "## Models"])
-        lines.extend(_markdown_table(["Provider", "Model"], rows))
-    if data.get("config_file"):
-        lines.extend(["", f"Config file: `{data.get('config_file')}`"])
-    lines.extend(_error_lines(data))
-    return "\n".join(lines).strip() + "\n"
-
-
 def _format_setup_markdown(data: dict[str, Any]) -> str:
     lines = ["# Smart Search Setup", "", f"Status: {_status_label(data.get('ok'))}"]
     if data.get("config_file"):
@@ -633,44 +554,6 @@ def _format_setup_markdown(data: dict[str, Any]) -> str:
     if saved:
         lines.extend(["", "## Saved Values"])
         lines.extend(_markdown_table(["Key", "Value"], [[key, value] for key, value in saved.items()]))
-    skills = data.get("skills") or {}
-    if isinstance(skills, dict) and skills:
-        installed = skills.get("installed") or []
-        failed = skills.get("failed") or []
-        lines.extend(["", "## Skills", f"Installed: {len(installed)}", f"Failed: {len(failed)}"])
-    lines.extend(_error_lines(data))
-    return "\n".join(lines).strip() + "\n"
-
-
-def _format_skills_markdown(data: dict[str, Any]) -> str:
-    lines = ["# Smart Search Skills", "", f"Status: {_status_label(data.get('ok'))}"]
-    if data.get("root"):
-        lines.append(f"Root: `{data.get('root')}`")
-    if data.get("skill"):
-        lines.append(f"Skill: `{data.get('skill')}`")
-    if data.get("bundled_files") is not None:
-        lines.append(f"Bundled files: {data.get('bundled_files')}")
-
-    targets = data.get("targets") or data.get("installed") or []
-    if targets:
-        rows = []
-        for item in targets:
-            rows.append(
-                [
-                    item.get("target", ""),
-                    item.get("status", "installed"),
-                    item.get("files", item.get("installed_files", "")),
-                    item.get("installed_files", ""),
-                    _yes_no(item.get("hash_match")),
-                    len(item.get("extra_files") or []),
-                    item.get("path", ""),
-                ]
-            )
-        lines.extend(["", "## Targets"])
-        lines.extend(_markdown_table(["Target", "Status", "Files", "Installed", "Hash match", "Extra", "Path"], rows))
-    if data.get("failed"):
-        lines.extend(["", "## Failed"])
-        lines.extend(_markdown_table(["Target", "Path", "Error"], [[item.get("target"), item.get("path"), item.get("error")] for item in data.get("failed", [])]))
     lines.extend(_error_lines(data))
     return "\n".join(lines).strip() + "\n"
 
@@ -738,36 +621,6 @@ def _format_markdown(command: str, data: dict[str, Any]) -> str:
             lines.extend(["", content])
         lines.extend(_error_lines(data))
         return "\n".join(lines).strip() + "\n"
-    if command == "deep":
-        lines = [
-            "# Deep Research Plan",
-            "",
-            f"**Question:** {data.get('question', '')}",
-            f"**Mode:** {data.get('mode', '')}",
-            f"**Difficulty:** {data.get('difficulty', '')}",
-            f"**Evidence policy:** {data.get('evidence_policy', '')}",
-            "",
-            "## Boundary",
-        ]
-        usage_boundary = data.get("usage_boundary") or {}
-        for key in ("search", "deep", "execution"):
-            if usage_boundary.get(key):
-                lines.append(f"- **{key}:** {usage_boundary[key]}")
-        decomposition = data.get("decomposition") or []
-        if decomposition:
-            lines.extend(["", "## Decomposition"])
-            for item in decomposition:
-                lines.append(f"- **{item.get('id', '')}:** {item.get('question', '')}")
-        steps = data.get("steps") or []
-        if steps:
-            lines.extend(["", "## Steps"])
-            for step in steps:
-                lines.append(f"{step.get('id', '')}. `{step.get('tool', '')}` ({step.get('subquestion_id', '')}) - {step.get('purpose', '')}")
-                lines.append(f"   ```powershell\n   {step.get('command', '')}\n   ```")
-        gap_check = data.get("gap_check") or {}
-        if gap_check:
-            lines.extend(["", "## Gap Check", gap_check.get("rule", "")])
-        return "\n".join(lines).strip() + "\n"
     if command == "research":
         lines = [
             "# Research Report",
@@ -802,30 +655,15 @@ def _format_markdown(command: str, data: dict[str, Any]) -> str:
         return _format_doctor_markdown(data)
     if command == "diagnose":
         return _format_diagnose_markdown(data)
-    if command == "smoke":
-        return _format_smoke_markdown(data)
     if command == "config":
         return _format_config_markdown(data)
-    if command == "model":
-        return _format_model_markdown(data)
     if command == "setup":
         return _format_setup_markdown(data)
-    if command == "skills":
-        return _format_skills_markdown(data)
     titles = {
         "map": "Site Map",
         "exa-search": "Exa Search",
         "exa-similar": "Exa Similar Pages",
         "zhipu-search": "Zhipu Search",
-        "zhipu-mcp-search": "Zhipu Coding Plan MCP Search",
-        "zhipu-mcp-reader": "Zhipu Coding Plan MCP Reader",
-        "zhipu-mcp-search-doc": "Zhipu Coding Plan MCP Search Doc",
-        "zhipu-mcp-repo-structure": "Zhipu Coding Plan MCP Repo Structure",
-        "zhipu-mcp-read-file": "Zhipu Coding Plan MCP Read File",
-        "anysearch-domains": "AnySearch Domains",
-        "anysearch-search": "AnySearch Search",
-        "anysearch-extract": "AnySearch Extract",
-        "anysearch-batch": "AnySearch Batch",
         "context7-library": "Context7 Library Search",
     }
     if command in titles:
@@ -862,7 +700,7 @@ def _format_content(command: str, data: dict[str, Any]) -> str:
         if error:
             return f"{_status_label(data.get('ok'))}: {error}\n"
         return ""
-    if command == "deep" or data.get("mode") == "deep_research":
+    if data.get("mode") == "deep_research":
         lines = [
             f"Deep Research plan for: {data.get('question', '')}",
             "This command only plans; execute the listed CLI steps to perform live research.",
@@ -892,11 +730,6 @@ def _format_content(command: str, data: dict[str, Any]) -> str:
         if data.get("error"):
             lines.append(f"Error: {_error_summary(data)}")
         return "\n".join(lines).strip() + "\n"
-    if command == "smoke":
-        cases = data.get("cases") or []
-        failed = data.get("failed_cases") or []
-        degraded = data.get("degraded_cases") or []
-        return f"Smoke {data.get('mode', '')} {_status_label(data.get('ok'))}: {len(cases)} cases, {len(failed)} failed, {len(degraded)} degraded\n"
     if command == "config":
         parts = [f"Config {_status_label(data.get('ok'))}"]
         if data.get("config_file"):
@@ -915,45 +748,16 @@ def _format_content(command: str, data: dict[str, Any]) -> str:
         if data.get("error"):
             parts.append(f"error={_error_summary(data)}")
         return "; ".join(parts) + "\n"
-    if command == "model":
-        if data.get("error"):
-            return f"Model {_status_label(data.get('ok'))}: {_error_summary(data)}\n"
-        rows = []
-        if data.get("xai_model"):
-            rows.append(f"xai-responses={data.get('xai_model')}")
-        if data.get("openai_compatible_model"):
-            rows.append(f"openai-compatible={data.get('openai_compatible_model')}")
-        if data.get("current_model"):
-            rows.append(f"current={data.get('current_model')}")
-        return ("Models: " + ", ".join(rows) if rows else f"Model {_status_label(data.get('ok'))}") + "\n"
     if command == "setup":
         if data.get("error"):
             return f"Setup {_status_label(data.get('ok'))}: {_error_summary(data)}\n"
         saved = data.get("saved") or data.get("values") or {}
         return f"Setup {_status_label(data.get('ok'))}: {len(saved)} values saved\n"
-    if command == "skills":
-        if data.get("error"):
-            return f"Skills {_status_label(data.get('ok'))}: {_error_summary(data)}\n"
-        targets = data.get("targets") or data.get("installed") or []
-        counts = data.get("status_counts") or {}
-        if counts:
-            summary = ", ".join(f"{key}={value}" for key, value in sorted(counts.items()))
-            return f"Skills {_status_label(data.get('ok'))}: {summary}\n"
-        return f"Skills {_status_label(data.get('ok'))}: {len(targets)} targets\n"
     if command in {
         "map",
         "exa-search",
         "exa-similar",
         "zhipu-search",
-        "zhipu-mcp-search",
-        "zhipu-mcp-reader",
-        "zhipu-mcp-search-doc",
-        "zhipu-mcp-repo-structure",
-        "zhipu-mcp-read-file",
-        "anysearch-domains",
-        "anysearch-search",
-        "anysearch-extract",
-        "anysearch-batch",
         "context7-library",
     }:
         lines = _plain_result_lines(data)
@@ -1073,17 +877,13 @@ def _t(lang: str, zh: str, en: str) -> str:
 
 def _display_provider(provider: str, lang: str) -> str:
     names = {
-        "xai-responses": "xAI Responses",
         "openai-compatible": "OpenAI-compatible",
         "zhipu": _t(lang, "智谱", "Zhipu"),
-        "zhipu-mcp": _t(lang, "智谱 Coding Plan MCP", "Zhipu Coding Plan MCP"),
-        "zhipu-mcp-reader": _t(lang, "智谱 MCP Reader", "Zhipu MCP Reader"),
         "exa": "Exa",
         "context7": "Context7",
         "jina": "Jina Reader",
         "tavily": "Tavily",
         "firecrawl": "Firecrawl",
-        "anysearch": "AnySearch",
     }
     return names.get(provider, provider)
 
@@ -1152,28 +952,25 @@ def _setup_status_from_values(values: dict[str, str]) -> dict[str, Any]:
         return bool(values.get(key))
 
     main_configured: set[str] = set()
-    if has("XAI_API_KEY"):
-        main_configured.add("xai-responses")
     if has("OPENAI_COMPATIBLE_API_URL") and has("OPENAI_COMPATIBLE_API_KEY"):
         main_configured.add("openai-compatible")
 
     status = {
         "main_search": {
-            "configured": [provider for provider in ("xai-responses", "openai-compatible") if provider in main_configured],
-            "fallback_chain": ["xai-responses", "openai-compatible"],
+            "configured": [provider for provider in ("openai-compatible",) if provider in main_configured],
+            "fallback_chain": ["openai-compatible"],
         },
         "web_search": {
             "configured": [
                 provider
                 for provider, configured in [
                     ("zhipu", has("ZHIPU_API_KEY")),
-                    ("zhipu-mcp", has("ZHIPU_MCP_API_KEY")),
                     ("tavily", has("TAVILY_API_KEY")),
                     ("firecrawl", has("FIRECRAWL_API_KEY")),
                 ]
                 if configured
             ],
-            "fallback_chain": ["zhipu", "zhipu-mcp", "tavily", "firecrawl"],
+            "fallback_chain": ["zhipu", "tavily", "firecrawl"],
         },
         "docs_search": {
             "configured": [
@@ -1192,17 +989,11 @@ def _setup_status_from_values(values: dict[str, str]) -> dict[str, Any]:
                 for provider, configured in [
                     ("tavily", has("TAVILY_API_KEY")),
                     ("jina", has("JINA_API_KEY")),
-                    ("zhipu-mcp-reader", has("ZHIPU_MCP_API_KEY")),
                     ("firecrawl", has("FIRECRAWL_API_KEY")),
                 ]
                 if configured
             ],
-            "fallback_chain": ["tavily", "jina", "zhipu-mcp-reader", "firecrawl"],
-        },
-        "vertical_search": {
-            "configured": ["anysearch"] if has("ANYSEARCH_API_KEY") else [],
-            "fallback_chain": ["anysearch"],
-            "experimental": True,
+            "fallback_chain": ["tavily", "jina", "firecrawl"],
         },
     }
     for item in status.values():
@@ -1363,7 +1154,6 @@ def _prompt_provider_multi_select(
         "两个": "all",
         "both": "all",
         "all": "all",
-        "xai": "xai-responses",
         "openai": "openai-compatible",
         "ctx7": "context7",
         "context": "context7",
@@ -1402,49 +1192,6 @@ def _select_setup_language(lang: str = "") -> str:
     return "zh"
 
 
-def _skill_target_choices(selected: list[str], lang: str) -> list[dict[str, Any]]:
-    selected_set = set(selected)
-    choices: list[dict[str, Any]] = []
-    for target in SKILL_TARGETS:
-        label = target.label
-        name = f"{label} (~/{target.relative_root})"
-        choices.append({"name": name, "value": target.target_id, "enabled": target.target_id in selected_set})
-    return choices
-
-
-def _prompt_skill_targets(lang: str) -> list[str]:
-    _write_stderr(
-        _t(
-            lang,
-            "\n[可选] 安装 smart-search-cli skill\n用途: 让本机全局 AI 工具知道优先调用 smart-search CLI。\n提示: 只安装 Smart Search skill；不会初始化 Trellis，也不会生成 hooks、agents 或 commands。\n",
-            "\n[Optional] Install the smart-search-cli skill\nPurpose: teach user-level AI tools on this machine to call the smart-search CLI first.\nNote: this only installs the Smart Search skill; it does not initialize Trellis or generate hooks, agents, or commands.\n",
-        )
-    )
-    tui_value = _checkbox_with_tui(
-        _t(lang, "安装给哪些 AI 工具使用?", "Install for which AI tools?"),
-        _skill_target_choices(DEFAULT_SKILL_TARGET_IDS, lang),
-    )
-    if tui_value is not None:
-        return [target.target_id for target in SKILL_TARGETS if target.target_id in set(tui_value)]
-
-    default_text = ",".join(DEFAULT_SKILL_TARGET_IDS)
-    _write_stderr(
-        _t(
-            lang,
-            f"安装 skill 目标 [codex,claude,cursor,.../all/skip] ({default_text}): ",
-            f"Skill install targets [codex,claude,cursor,.../all/skip] ({default_text}): ",
-        )
-    )
-    raw = input("").strip()
-    if not raw:
-        return list(DEFAULT_SKILL_TARGET_IDS)
-    try:
-        return parse_skill_targets(raw)
-    except SkillInstallError as e:
-        _write_stderr(f"{e}\n")
-        return list(DEFAULT_SKILL_TARGET_IDS)
-
-
 def _setup_choice(prompt: str, choices: set[str], default: str) -> str:
     value = _prompt_choice(prompt, default).strip().lower()
     aliases = {
@@ -1462,12 +1209,12 @@ def _setup_choice(prompt: str, choices: set[str], default: str) -> str:
 def _prompt_main_search(values: dict[str, str], current: dict[str, str], lang: str) -> None:
     status = _setup_status_from_values(_merge_setup_values(current, values))
     configured = status["main_search"]["configured"]
-    default_selected = configured or ["xai-responses"]
+    default_selected = configured or ["openai-compatible"]
     _write_stderr(
         _t(
             lang,
-            "\n[1/3 必选] main_search 主搜索\n用途: 负责综合搜索回答和最终合成。\n推荐: 有 xAI key 选 xai；有中转服务选 openai；两者都配可以同能力兜底。\n",
-            "\n[1/3 Required] main_search primary search\nPurpose: broad search answers and final synthesis.\nRecommended: choose xai for an xAI key, openai for a relay, or both for same-capability fallback.\n",
+            "\n[1/3 必选] main_search 主搜索\n用途: 负责综合搜索回答和最终合成。\n推荐: 配置 OpenAI-compatible 中转服务。\n",
+            "\n[1/3 Required] main_search primary search\nPurpose: broad search answers and final synthesis.\nRecommended: configure an OpenAI-compatible relay.\n",
         )
     )
     selected = _prompt_provider_multi_select(
@@ -1476,19 +1223,10 @@ def _prompt_main_search(values: dict[str, str], current: dict[str, str], lang: s
             "选择 main_search provider",
             "Choose main_search providers",
         ),
-        ["xai-responses", "openai-compatible"],
+        ["openai-compatible"],
         default_selected,
         lang,
     )
-    if "xai-responses" in selected:
-        values["XAI_API_KEY"] = _prompt_value("XAI_API_KEY", "xAI API key", current.get("XAI_API_KEY", ""), lang=lang)
-        values["XAI_MODEL"] = _prompt_value(
-            "XAI_MODEL",
-            _t(lang, "xAI Responses 模型", "xAI Responses model"),
-            current.get("XAI_MODEL", ""),
-            optional=True,
-            lang=lang,
-        )
     if "openai-compatible" in selected:
         values["OPENAI_COMPATIBLE_API_URL"] = _prompt_value(
             "OPENAI_COMPATIBLE_API_URL",
@@ -1817,12 +1555,12 @@ def _write_setup_examples(lang: str) -> None:
         _t(
             lang,
             "\n不知道怎么填: 先配齐 main_search + docs_search + web_fetch。\n"
-            "  main_search: xAI Responses，或 OpenAI-compatible（示例: https://api.openai.com/v1）\n"
+            "  main_search: OpenAI-compatible（示例: https://api.openai.com/v1）\n"
             "  docs_search: 文档/API 优先 Context7；官方域名、论文和低噪声发现再配 Exa。\n"
             "  web_fetch: Tavily 官方地址是 https://api.tavily.com；号池填 https://<host>/api/tavily。\n"
             "  key 都填你自己控制台里的；Zhipu / Firecrawl 可以之后再补。\n",
             "\nIf unsure: first configure main_search + docs_search + web_fetch.\n"
-            "  main_search: xAI Responses, or OpenAI-compatible (example: https://api.openai.com/v1)\n"
+            "  main_search: OpenAI-compatible (example: https://api.openai.com/v1)\n"
             "  docs_search: Context7 for docs/API first; add Exa for official domains, papers, and low-noise discovery.\n"
             "  web_fetch: official Tavily endpoint is https://api.tavily.com; pooled endpoints use https://<host>/api/tavily.\n"
             "  Use keys from your own provider consoles. Zhipu / Firecrawl can be added later.\n",
@@ -1835,7 +1573,6 @@ def _run_guided_setup_prompts(
     current: dict[str, str],
     lang: str,
     *,
-    skill_targets: list[str] | None = None,
     show_banner: bool = True,
 ) -> None:
     config_file = service.config_path()["config_file"]
@@ -1852,29 +1589,10 @@ def _run_guided_setup_prompts(
     _write_setup_keep_note(lang)
     _write_setup_examples(lang)
     _write_setup_status(_setup_status_from_values(_merge_setup_values(current, values)), lang)
-    if skill_targets is not None:
-        skill_targets[:] = _prompt_skill_targets(lang)
     _prompt_main_search(values, current, lang)
     _prompt_docs_search(values, current, lang)
     _prompt_web_fetch(values, current, lang)
     _prompt_optional_enhancements(values, current, lang)
-
-
-def _write_skill_install_summary(result: dict[str, Any], lang: str) -> None:
-    if not result.get("selected"):
-        _write_stderr(_t(lang, "\nSkill 安装: 已跳过。\n", "\nSkill install: skipped.\n"))
-        return
-    _write_stderr(
-        _t(
-            lang,
-            f"\nSkill 安装结果: installed {result.get('installed_count', 0)}, skipped {result.get('skipped_count', 0)}, failed {result.get('failed_count', 0)}\n",
-            f"\nSkill install result: installed {result.get('installed_count', 0)}, skipped {result.get('skipped_count', 0)}, failed {result.get('failed_count', 0)}\n",
-        )
-    )
-    for item in result.get("installed", []):
-        _write_stderr(f"  [OK] {item.get('label')} -> {item.get('path')}\n")
-    for item in result.get("failed", []):
-        _write_stderr(f"  [FAILED] {item.get('label')} -> {item.get('path')}: {item.get('error')}\n")
 
 
 def _run_advanced_setup_prompts(values: dict[str, str], current: dict[str, str], lang: str) -> None:
@@ -1886,10 +1604,6 @@ def _run_advanced_setup_prompts(values: dict[str, str], current: dict[str, str],
         )
     )
     prompts = [
-        ("XAI_API_URL", "xAI Responses API URL", True),
-        ("XAI_API_KEY", "xAI API key", True),
-        ("XAI_MODEL", "xAI Responses model", True),
-        ("XAI_TOOLS", "xAI Responses tools (web_search,x_search)", True),
         ("OPENAI_COMPATIBLE_API_URL", "OpenAI-compatible API URL", True),
         ("OPENAI_COMPATIBLE_API_KEY", "OpenAI-compatible API key", True),
         ("OPENAI_COMPATIBLE_MODEL", "OpenAI-compatible model", True),
@@ -1902,11 +1616,6 @@ def _run_advanced_setup_prompts(values: dict[str, str], current: dict[str, str],
         ("ZHIPU_API_KEY", "Zhipu API key", True),
         ("ZHIPU_API_URL", "Zhipu Web Search API URL", True),
         ("ZHIPU_SEARCH_ENGINE", "Zhipu search service (search_std/search_pro/search_pro_sogou/search_pro_quark/custom)", True),
-        ("ZHIPU_MCP_API_KEY", "Zhipu Coding Plan MCP API key", True),
-        ("ZHIPU_MCP_SEARCH_API_URL", "Zhipu Coding Plan search MCP URL", True),
-        ("ZHIPU_MCP_READER_API_URL", "Zhipu Coding Plan reader MCP URL", True),
-        ("ZHIPU_MCP_ZREAD_API_URL", "Zhipu Coding Plan zread MCP URL", True),
-        ("ZHIPU_MCP_TIMEOUT_SECONDS", "Zhipu Coding Plan MCP timeout seconds", True),
         ("JINA_API_KEY", "Jina API key", True),
         ("JINA_READER_API_URL", "Jina Reader API URL", True),
         ("JINA_RESPOND_WITH", "Jina respond-with mode (optional, e.g. readerlm-v2)", True),
@@ -1915,9 +1624,6 @@ def _run_advanced_setup_prompts(values: dict[str, str], current: dict[str, str],
         ("TAVILY_API_KEY", "Tavily API key", True),
         ("FIRECRAWL_API_URL", "Firecrawl API URL", True),
         ("FIRECRAWL_API_KEY", "Firecrawl API key", True),
-        ("ANYSEARCH_API_URL", "AnySearch MCP API URL", True),
-        ("ANYSEARCH_API_KEY", "AnySearch API key", True),
-        ("ANYSEARCH_TIMEOUT_SECONDS", "AnySearch timeout seconds", True),
     ]
     for key, label, optional in prompts:
         if values[key]:
@@ -1931,8 +1637,6 @@ def _run_advanced_setup_prompts(values: dict[str, str], current: dict[str, str],
             value = _normalize_zhipu_api_url(value)
         elif key == "JINA_READER_API_URL":
             value = _normalize_jina_reader_api_url(value)
-        elif key in {"ZHIPU_MCP_SEARCH_API_URL", "ZHIPU_MCP_READER_API_URL", "ZHIPU_MCP_ZREAD_API_URL"}:
-            value = _normalize_custom_base_url(value)
         values[key] = value
 
 
@@ -1996,51 +1700,12 @@ async def _run_async(args: argparse.Namespace) -> int:
             content_size=args.content_size,
         )
         return _print_result("zhipu-search", data, args.format, args.output)
-    if args.command == "zhipu-mcp-search":
-        data = await service.zhipu_mcp_search(args.query, count=args.count)
-        return _print_result("zhipu-mcp-search", data, args.format, args.output)
-    if args.command == "zhipu-mcp-reader":
-        data = await service.zhipu_mcp_reader(args.url)
-        return _print_result("zhipu-mcp-reader", data, args.format, args.output)
-    if args.command == "zhipu-mcp-search-doc":
-        data = await service.zhipu_mcp_search_doc(args.repo, args.query, max_results=args.max_results)
-        return _print_result("zhipu-mcp-search-doc", data, args.format, args.output)
-    if args.command == "zhipu-mcp-repo-structure":
-        data = await service.zhipu_mcp_repo_structure(args.repo, ref=args.ref)
-        return _print_result("zhipu-mcp-repo-structure", data, args.format, args.output)
-    if args.command == "zhipu-mcp-read-file":
-        data = await service.zhipu_mcp_read_file(args.repo, args.path, ref=args.ref)
-        return _print_result("zhipu-mcp-read-file", data, args.format, args.output)
-    if args.command == "anysearch-domains":
-        data = await service.anysearch_domains(args.domain)
-        return _print_result("anysearch-domains", data, args.format, args.output)
-    if args.command == "anysearch-search":
-        data = await service.anysearch_search(
-            args.query,
-            domain=args.domain,
-            sub_domain=args.sub_domain,
-            max_results=args.max_results,
-        )
-        return _print_result("anysearch-search", data, args.format, args.output)
-    if args.command == "anysearch-extract":
-        data = await service.anysearch_extract(args.url, max_length=args.max_length)
-        return _print_result("anysearch-extract", data, args.format, args.output)
-    if args.command == "anysearch-batch":
-        data = await service.anysearch_batch(args.queries, max_results=args.max_results)
-        return _print_result("anysearch-batch", data, args.format, args.output)
     if args.command == "context7-library":
         data = await service.context7_library(args.name, args.query)
         return _print_result("context7-library", data, args.format, args.output)
     if args.command == "context7-docs":
         data = await service.context7_docs(args.library_id, args.query)
         return _print_result("context7-docs", data, args.format, args.output)
-    if args.command == "deep":
-        data = service.build_deep_research_plan(
-            args.query,
-            budget=args.budget,
-            evidence_dir=args.evidence_dir,
-        )
-        return _print_result("deep", data, args.format, args.output)
     if args.command == "research":
         data = await service.research(
             args.query,
@@ -2049,9 +1714,6 @@ async def _run_async(args: argparse.Namespace) -> int:
             fallback=args.fallback,
         )
         return _print_result("research", data, args.format, args.output)
-    if args.command == "smoke":
-        data = await service.smoke(args.mode)
-        return _print_result("smoke", data, args.format, args.output)
     if args.command == "doctor":
         data = await service.doctor()
         return _print_result("doctor", data, args.format, args.output)
@@ -2068,16 +1730,6 @@ async def _run_async(args: argparse.Namespace) -> int:
     return EXIT_PARAMETER_ERROR
 
 
-def _run_model(args: argparse.Namespace) -> int:
-    if args.model_command == "set":
-        data = service.set_model(args.model)
-    elif args.model_command == "current":
-        data = service.current_model()
-    else:
-        data = {"ok": False, "error_type": "parameter_error", "error": "Unknown model command"}
-    return _print_result("model", data, args.format, args.output)
-
-
 def _run_config(args: argparse.Namespace) -> int:
     if args.config_command == "path":
         data = service.config_path()
@@ -2092,52 +1744,8 @@ def _run_config(args: argparse.Namespace) -> int:
     return _print_result("config", data, args.format, args.output)
 
 
-def _skill_targets_from_args(args: argparse.Namespace) -> list[str]:
-    if getattr(args, "all", False):
-        return [target.target_id for target in SKILL_TARGETS]
-    raw = getattr(args, "targets", "") or ""
-    if raw:
-        return parse_skill_targets(raw)
-    return list(DEFAULT_SKILL_TARGET_IDS)
-
-
-def _run_skills(args: argparse.Namespace) -> int:
-    try:
-        target_ids = _skill_targets_from_args(args)
-    except SkillInstallError as e:
-        data = {"ok": False, "error_type": "parameter_error", "error": str(e), "selected": []}
-        return _print_result("skills", data, args.format, args.output)
-
-    if args.skills_command == "status":
-        try:
-            data = status_skill_targets(target_ids, project_root=args.skills_root)
-        except SkillInstallError as e:
-            data = {"ok": False, "error_type": "runtime_error", "error": str(e), "selected": target_ids}
-        return _print_result("skills", data, args.format, args.output)
-
-    if args.skills_command == "update":
-        try:
-            data = install_skill_targets(target_ids, project_root=args.skills_root)
-        except SkillInstallError as e:
-            data = {"ok": False, "error_type": "runtime_error", "error": str(e), "selected": target_ids}
-        return _print_result("skills", data, args.format, args.output)
-
-    data = {"ok": False, "error_type": "parameter_error", "error": "Unknown skills command", "selected": target_ids}
-    return _print_result("skills", data, args.format, args.output)
-
-
 def _run_setup(args: argparse.Namespace) -> int:
-    try:
-        explicit_skill_targets = parse_skill_targets(args.install_skills) if args.install_skills else []
-    except SkillInstallError as e:
-        data = {"ok": False, "error_type": "parameter_error", "error": str(e), "config_file": service.config_path()["config_file"]}
-        return _print_result("setup", data, args.format, args.output)
-
     values = {
-        "XAI_API_URL": args.xai_api_url,
-        "XAI_API_KEY": args.xai_api_key,
-        "XAI_MODEL": args.xai_model,
-        "XAI_TOOLS": args.xai_tools_explicit,
         "OPENAI_COMPATIBLE_API_URL": args.openai_compatible_api_url,
         "OPENAI_COMPATIBLE_API_KEY": args.openai_compatible_api_key,
         "OPENAI_COMPATIBLE_MODEL": args.openai_compatible_model,
@@ -2150,11 +1758,6 @@ def _run_setup(args: argparse.Namespace) -> int:
         "ZHIPU_API_KEY": args.zhipu_key,
         "ZHIPU_API_URL": _normalize_zhipu_api_url(args.zhipu_api_url),
         "ZHIPU_SEARCH_ENGINE": args.zhipu_search_engine,
-        "ZHIPU_MCP_API_KEY": args.zhipu_mcp_key,
-        "ZHIPU_MCP_SEARCH_API_URL": _normalize_custom_base_url(args.zhipu_mcp_search_api_url),
-        "ZHIPU_MCP_READER_API_URL": _normalize_custom_base_url(args.zhipu_mcp_reader_api_url),
-        "ZHIPU_MCP_ZREAD_API_URL": _normalize_custom_base_url(args.zhipu_mcp_zread_api_url),
-        "ZHIPU_MCP_TIMEOUT_SECONDS": args.zhipu_mcp_timeout,
         "JINA_API_KEY": args.jina_key,
         "JINA_READER_API_URL": _normalize_jina_reader_api_url(args.jina_reader_api_url),
         "JINA_RESPOND_WITH": args.jina_respond_with,
@@ -2163,13 +1766,9 @@ def _run_setup(args: argparse.Namespace) -> int:
         "TAVILY_API_KEY": args.tavily_key,
         "FIRECRAWL_API_URL": _normalize_firecrawl_api_url(args.firecrawl_api_url),
         "FIRECRAWL_API_KEY": args.firecrawl_key,
-        "ANYSEARCH_API_URL": _normalize_custom_base_url(args.anysearch_api_url),
-        "ANYSEARCH_API_KEY": args.anysearch_key,
-        "ANYSEARCH_TIMEOUT_SECONDS": args.anysearch_timeout,
     }
 
     lang = args.lang if args.lang in {"zh", "en"} else "zh"
-    selected_skill_targets: list[str] = list(explicit_skill_targets)
 
     if not args.non_interactive:
         current = service.config_list(show_secrets=True)["values"]
@@ -2178,8 +1777,7 @@ def _run_setup(args: argparse.Namespace) -> int:
         if args.advanced:
             _run_advanced_setup_prompts(values, current, lang)
         else:
-            skill_targets_for_prompt = selected_skill_targets if not args.skip_skills and not selected_skill_targets else None
-            _run_guided_setup_prompts(values, current, lang, skill_targets=skill_targets_for_prompt, show_banner=False)
+            _run_guided_setup_prompts(values, current, lang, show_banner=False)
 
     saved: dict[str, str] = {}
     for key, value in values.items():
@@ -2187,24 +1785,12 @@ def _run_setup(args: argparse.Namespace) -> int:
             result = service.config_set(key, value)
             saved[key] = result.get("value", "")
 
-    skill_result = None
-    if not args.skip_skills and selected_skill_targets:
-        skill_result = install_skill_targets(selected_skill_targets, project_root=args.skills_root)
-
-    ok = True if skill_result is None else bool(skill_result.get("ok", False))
-    data = {"ok": ok, "config_file": service.config_path()["config_file"], "saved": saved}
-    if skill_result is not None:
-        data["skills"] = skill_result
-        if not skill_result.get("ok", False):
-            data["error_type"] = "runtime_error"
-            data["error"] = "One or more skill targets failed to install."
+    data = {"ok": True, "config_file": service.config_path()["config_file"], "saved": saved}
     if not args.non_interactive:
         current_after = service.config_list(show_secrets=True)["values"]
         final_values = _merge_setup_values(current_after, values)
         final_status = _setup_status_from_values(final_values)
         _write_stderr(_t(lang, "\n保存完成。\n", "\nSaved.\n"))
-        if skill_result is not None:
-            _write_skill_install_summary(skill_result, lang)
         _write_setup_status(final_status, lang, final=True)
         missing = [capability for capability in ("main_search", "docs_search", "web_fetch") if not final_status[capability]["ok"]]
         if missing:
@@ -2229,30 +1815,6 @@ def _run_setup(args: argparse.Namespace) -> int:
     return _print_result("setup", data, args.format, args.output)
 
 
-def _run_regression() -> int:
-    root = Path(__file__).resolve().parents[2]
-    patterns = [
-        "tests/test_cli.py",
-        "tests/test_service.py",
-        "tests/test_providers_new.py",
-        "tests/test_jina_provider.py",
-        "tests/test_zhipu_mcp_provider.py",
-        "tests/test_smoke.py",
-        "tests/test_regression.py",
-        "tests/test_release_workflow.py",
-    ]
-    if not all((root / pattern).exists() for pattern in patterns):
-        print("Packaged install has no test files; running mock smoke regression instead.", file=sys.stderr)
-        return asyncio.run(_run_regression_smoke_fallback())
-    cmd = [sys.executable, "-m", "pytest", *patterns]
-    return subprocess.call(cmd, cwd=str(root))
-
-
-async def _run_regression_smoke_fallback() -> int:
-    data = await service.smoke("mock")
-    return _print_result("smoke", data, "json")
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = SmartSearchArgumentParser(
         prog="smart-search",
@@ -2275,7 +1837,7 @@ def build_parser() -> argparse.ArgumentParser:
     stream_group = search_parser.add_mutually_exclusive_group()
     stream_group.add_argument("--stream", dest="stream", action="store_true", default=None, help="Use stream=true for OpenAI-compatible main search.")
     stream_group.add_argument("--no-stream", dest="stream", action="store_false", help="Force stream=false for OpenAI-compatible main search.")
-    search_parser.add_argument("--timeout", type=float, default=90, metavar="SECONDS", help="Hard timeout in seconds.")
+    search_parser.add_argument("--timeout", type=float, default=120, metavar="SECONDS", help="Hard timeout in seconds.")
     _add_format_args(search_parser)
 
     fetch_parser = sub.add_parser("fetch", aliases=COMMAND_ALIASES["fetch"], help="Fetch a URL as markdown.")
@@ -2328,98 +1890,6 @@ def build_parser() -> argparse.ArgumentParser:
     zhipu_parser.add_argument("--content-size", choices=["medium", "high"], default="medium")
     _add_format_args(zhipu_parser)
 
-    zhipu_mcp_search_parser = sub.add_parser(
-        "zhipu-mcp-search",
-        aliases=COMMAND_ALIASES["zhipu-mcp-search"],
-        help="Run Zhipu Coding Plan Remote MCP web_search_prime.",
-    )
-    zhipu_mcp_search_parser.set_defaults(command="zhipu-mcp-search")
-    zhipu_mcp_search_parser.add_argument("query")
-    zhipu_mcp_search_parser.add_argument("--count", type=int, default=5)
-    _add_format_args(zhipu_mcp_search_parser)
-
-    zhipu_mcp_reader_parser = sub.add_parser(
-        "zhipu-mcp-reader",
-        aliases=COMMAND_ALIASES["zhipu-mcp-reader"],
-        help="Run Zhipu Coding Plan Remote MCP webReader.",
-    )
-    zhipu_mcp_reader_parser.set_defaults(command="zhipu-mcp-reader")
-    zhipu_mcp_reader_parser.add_argument("url")
-    _add_format_args(zhipu_mcp_reader_parser)
-
-    zhipu_mcp_search_doc_parser = sub.add_parser(
-        "zhipu-mcp-search-doc",
-        aliases=COMMAND_ALIASES["zhipu-mcp-search-doc"],
-        help="Search repository docs through Zhipu Coding Plan zread MCP.",
-    )
-    zhipu_mcp_search_doc_parser.set_defaults(command="zhipu-mcp-search-doc")
-    zhipu_mcp_search_doc_parser.add_argument("repo")
-    zhipu_mcp_search_doc_parser.add_argument("query")
-    zhipu_mcp_search_doc_parser.add_argument("--max-results", type=int, default=5)
-    _add_format_args(zhipu_mcp_search_doc_parser)
-
-    zhipu_mcp_repo_structure_parser = sub.add_parser(
-        "zhipu-mcp-repo-structure",
-        aliases=COMMAND_ALIASES["zhipu-mcp-repo-structure"],
-        help="Read repository structure through Zhipu Coding Plan zread MCP.",
-    )
-    zhipu_mcp_repo_structure_parser.set_defaults(command="zhipu-mcp-repo-structure")
-    zhipu_mcp_repo_structure_parser.add_argument("repo")
-    zhipu_mcp_repo_structure_parser.add_argument("--ref", default="")
-    _add_format_args(zhipu_mcp_repo_structure_parser)
-
-    zhipu_mcp_read_file_parser = sub.add_parser(
-        "zhipu-mcp-read-file",
-        aliases=COMMAND_ALIASES["zhipu-mcp-read-file"],
-        help="Read a repository file through Zhipu Coding Plan zread MCP.",
-    )
-    zhipu_mcp_read_file_parser.set_defaults(command="zhipu-mcp-read-file")
-    zhipu_mcp_read_file_parser.add_argument("repo")
-    zhipu_mcp_read_file_parser.add_argument("path")
-    zhipu_mcp_read_file_parser.add_argument("--ref", default="")
-    _add_format_args(zhipu_mcp_read_file_parser)
-
-    anysearch_domains_parser = sub.add_parser(
-        "anysearch-domains",
-        aliases=COMMAND_ALIASES["anysearch-domains"],
-        help="List AnySearch vertical search domains.",
-    )
-    anysearch_domains_parser.set_defaults(command="anysearch-domains")
-    anysearch_domains_parser.add_argument("domain", nargs="?", default="")
-    _add_format_args(anysearch_domains_parser)
-
-    anysearch_search_parser = sub.add_parser(
-        "anysearch-search",
-        aliases=COMMAND_ALIASES["anysearch-search"],
-        help="Run experimental AnySearch vertical/general search.",
-    )
-    anysearch_search_parser.set_defaults(command="anysearch-search")
-    anysearch_search_parser.add_argument("query")
-    anysearch_search_parser.add_argument("--domain", default="")
-    anysearch_search_parser.add_argument("--sub-domain", default="")
-    anysearch_search_parser.add_argument("--max-results", type=int, default=5)
-    _add_format_args(anysearch_search_parser)
-
-    anysearch_extract_parser = sub.add_parser(
-        "anysearch-extract",
-        aliases=COMMAND_ALIASES["anysearch-extract"],
-        help="Extract a URL through AnySearch experimental extract.",
-    )
-    anysearch_extract_parser.set_defaults(command="anysearch-extract")
-    anysearch_extract_parser.add_argument("url")
-    anysearch_extract_parser.add_argument("--max-length", type=int, default=20000)
-    _add_format_args(anysearch_extract_parser)
-
-    anysearch_batch_parser = sub.add_parser(
-        "anysearch-batch",
-        aliases=COMMAND_ALIASES["anysearch-batch"],
-        help="Run up to 5 AnySearch queries in parallel.",
-    )
-    anysearch_batch_parser.set_defaults(command="anysearch-batch")
-    anysearch_batch_parser.add_argument("queries", nargs="+")
-    anysearch_batch_parser.add_argument("--max-results", type=int, default=3)
-    _add_format_args(anysearch_batch_parser)
-
     context7_library_parser = sub.add_parser(
         "context7-library",
         aliases=COMMAND_ALIASES["context7-library"],
@@ -2440,17 +1910,6 @@ def build_parser() -> argparse.ArgumentParser:
     context7_docs_parser.add_argument("query")
     _add_format_args(context7_docs_parser)
 
-    deep_parser = sub.add_parser(
-        "deep",
-        aliases=COMMAND_ALIASES["deep"],
-        help="Create an offline Deep Research plan without calling providers.",
-    )
-    deep_parser.set_defaults(command="deep")
-    deep_parser.add_argument("query")
-    deep_parser.add_argument("--budget", choices=["quick", "standard", "deep"], default="standard")
-    deep_parser.add_argument("--evidence-dir", default="")
-    _add_format_args(deep_parser)
-
     research_parser = sub.add_parser(
         "research",
         aliases=COMMAND_ALIASES["research"],
@@ -2462,17 +1921,6 @@ def build_parser() -> argparse.ArgumentParser:
     research_parser.add_argument("--evidence-dir", default="")
     research_parser.add_argument("--fallback", choices=["auto", "off"], default="auto")
     _add_format_args(research_parser)
-
-    smoke_parser = sub.add_parser(
-        "smoke", aliases=COMMAND_ALIASES["smoke"], help="Run provider routing and fallback smoke checks."
-    )
-    smoke_parser.set_defaults(command="smoke")
-    smoke_mode = smoke_parser.add_mutually_exclusive_group()
-    smoke_mode.add_argument("--mode", choices=["mock", "live"], default=None)
-    smoke_mode.add_argument("--mock", dest="mode", action="store_const", const="mock", help="Run offline mock smoke checks.")
-    smoke_mode.add_argument("--live", dest="mode", action="store_const", const="live", help="Run live provider smoke checks.")
-    smoke_parser.set_defaults(mode="mock")
-    _add_format_args(smoke_parser)
 
     doctor_parser = sub.add_parser(
         "doctor", aliases=COMMAND_ALIASES["doctor"], help="Show masked configuration and connection checks."
@@ -2491,57 +1939,6 @@ def build_parser() -> argparse.ArgumentParser:
     diagnose_parser.add_argument("--format", choices=["json", "markdown"], default="markdown")
     diagnose_parser.add_argument("--output", default="", help="Write rendered output to a file.")
 
-    model_parser = sub.add_parser(
-        "model",
-        aliases=COMMAND_ALIASES["model"],
-        help="Inspect explicit provider models; use config set XAI_MODEL or OPENAI_COMPATIBLE_MODEL to change them.",
-    )
-    model_parser.set_defaults(command="model")
-    model_sub = model_parser.add_subparsers(dest="model_command", required=True, parser_class=SmartSearchArgumentParser)
-    model_set = model_sub.add_parser("set", aliases=MODEL_COMMAND_ALIASES["set"])
-    model_set.set_defaults(model_command="set")
-    model_set.add_argument("model")
-    _add_format_args(model_set)
-    model_current = model_sub.add_parser("current", aliases=MODEL_COMMAND_ALIASES["current"])
-    model_current.set_defaults(model_command="current")
-    _add_format_args(model_current)
-
-    skills_parser = sub.add_parser(
-        "skills",
-        aliases=COMMAND_ALIASES["skills"],
-        help="Inspect or update installed smart-search-cli skills.",
-    )
-    skills_parser.set_defaults(command="skills")
-    skills_sub = skills_parser.add_subparsers(dest="skills_command", required=True, parser_class=SmartSearchArgumentParser)
-    skills_status = skills_sub.add_parser("status", aliases=SKILLS_COMMAND_ALIASES["status"], help="Compare bundled and installed skill files.")
-    skills_status.set_defaults(skills_command="status")
-    skills_status.add_argument(
-        "--targets",
-        default=",".join(DEFAULT_SKILL_TARGET_IDS),
-        help="Comma-separated AI tool targets, e.g. codex,claude,cursor,hermes.",
-    )
-    skills_status.add_argument("--all", action="store_true", help="Check every known skill target.")
-    skills_status.add_argument(
-        "--skills-root",
-        default="",
-        help="Advanced override for the user-level skill root; defaults to the current user's home directory.",
-    )
-    _add_format_args(skills_status)
-    skills_update = skills_sub.add_parser("update", aliases=SKILLS_COMMAND_ALIASES["update"], help="Overwrite selected installed skill files with bundled assets.")
-    skills_update.set_defaults(skills_command="update")
-    skills_update.add_argument(
-        "--targets",
-        default=",".join(DEFAULT_SKILL_TARGET_IDS),
-        help="Comma-separated AI tool targets, e.g. codex,claude,cursor,hermes.",
-    )
-    skills_update.add_argument("--all", action="store_true", help="Update every known skill target.")
-    skills_update.add_argument(
-        "--skills-root",
-        default="",
-        help="Advanced override for the user-level skill root; defaults to the current user's home directory.",
-    )
-    _add_format_args(skills_update)
-
     setup_parser = sub.add_parser(
         "setup", aliases=COMMAND_ALIASES["setup"], help="Interactively save local provider configuration."
     )
@@ -2549,21 +1946,6 @@ def build_parser() -> argparse.ArgumentParser:
     setup_parser.add_argument("--non-interactive", action="store_true", help="Only save values passed as flags.")
     setup_parser.add_argument("--lang", choices=["zh", "en"], default="", help="Interactive setup language.")
     setup_parser.add_argument("--advanced", action="store_true", help="Show every low-level config key in interactive setup.")
-    setup_parser.add_argument("--skip-skills", action="store_true", help="Skip user-level smart-search-cli skill installation.")
-    setup_parser.add_argument(
-        "--install-skills",
-        default="",
-        help="Comma-separated AI tool targets for smart-search-cli skill installation, e.g. codex,claude,cursor,hermes.",
-    )
-    setup_parser.add_argument(
-        "--skills-root",
-        default="",
-        help="Advanced override for the user-level skill root; defaults to the current user's home directory.",
-    )
-    setup_parser.add_argument("--xai-api-url", default="", help="Save XAI_API_URL.")
-    setup_parser.add_argument("--xai-api-key", default="", help="Save XAI_API_KEY.")
-    setup_parser.add_argument("--xai-model", default="", help="Save XAI_MODEL.")
-    setup_parser.add_argument("--xai-tools-explicit", default="", help="Save XAI_TOOLS.")
     setup_parser.add_argument("--openai-compatible-api-url", default="", help="Save OPENAI_COMPATIBLE_API_URL.")
     setup_parser.add_argument("--openai-compatible-api-key", default="", help="Save OPENAI_COMPATIBLE_API_KEY.")
     setup_parser.add_argument("--openai-compatible-model", default="", help="Save OPENAI_COMPATIBLE_MODEL.")
@@ -2576,11 +1958,6 @@ def build_parser() -> argparse.ArgumentParser:
     setup_parser.add_argument("--zhipu-key", default="", help="Save ZHIPU_API_KEY.")
     setup_parser.add_argument("--zhipu-api-url", default="", help="Save ZHIPU_API_URL.")
     setup_parser.add_argument("--zhipu-search-engine", default="", help="Save ZHIPU_SEARCH_ENGINE.")
-    setup_parser.add_argument("--zhipu-mcp-key", default="", help="Save ZHIPU_MCP_API_KEY.")
-    setup_parser.add_argument("--zhipu-mcp-search-api-url", default="", help="Save ZHIPU_MCP_SEARCH_API_URL.")
-    setup_parser.add_argument("--zhipu-mcp-reader-api-url", default="", help="Save ZHIPU_MCP_READER_API_URL.")
-    setup_parser.add_argument("--zhipu-mcp-zread-api-url", default="", help="Save ZHIPU_MCP_ZREAD_API_URL.")
-    setup_parser.add_argument("--zhipu-mcp-timeout", default="", help="Save ZHIPU_MCP_TIMEOUT_SECONDS.")
     setup_parser.add_argument("--jina-key", default="", help="Save JINA_API_KEY.")
     setup_parser.add_argument("--jina-reader-api-url", default="", help="Save JINA_READER_API_URL.")
     setup_parser.add_argument("--jina-respond-with", default="", help="Save JINA_RESPOND_WITH, e.g. readerlm-v2.")
@@ -2589,9 +1966,6 @@ def build_parser() -> argparse.ArgumentParser:
     setup_parser.add_argument("--tavily-key", default="", help="Save TAVILY_API_KEY.")
     setup_parser.add_argument("--firecrawl-api-url", default="", help="Save FIRECRAWL_API_URL.")
     setup_parser.add_argument("--firecrawl-key", default="", help="Save FIRECRAWL_API_KEY.")
-    setup_parser.add_argument("--anysearch-api-url", default="", help="Save ANYSEARCH_API_URL.")
-    setup_parser.add_argument("--anysearch-key", default="", help="Save ANYSEARCH_API_KEY.")
-    setup_parser.add_argument("--anysearch-timeout", default="", help="Save ANYSEARCH_TIMEOUT_SECONDS.")
     _add_format_args(setup_parser)
 
     config_parser = sub.add_parser(
@@ -2615,10 +1989,6 @@ def build_parser() -> argparse.ArgumentParser:
     config_unset.add_argument("key")
     _add_format_args(config_unset)
 
-    regression_parser = sub.add_parser(
-        "regression", aliases=COMMAND_ALIASES["regression"], help="Run offline CLI regression tests."
-    )
-    regression_parser.set_defaults(command="regression")
     return parser
 
 
@@ -2626,16 +1996,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
-        if args.command == "regression":
-            return _run_regression()
         if args.command == "setup":
             return _run_setup(args)
-        if args.command == "skills":
-            return _run_skills(args)
         if args.command == "config":
             return _run_config(args)
-        if args.command == "model":
-            return _run_model(args)
         return asyncio.run(_run_async(args))
     except KeyboardInterrupt:
         return EXIT_RUNTIME_ERROR

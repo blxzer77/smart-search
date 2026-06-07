@@ -123,8 +123,6 @@ def test_release_docs_explain_beta_lane_and_npm_immutability():
         "npm 版本不可变",
         "gh release list",
         "npm `E409`",
-        "smart-search regression",
-        "smart-search smoke --mock --format json",
         "ConvertFrom-Json",
     ]
     for marker in zh_required_markers:
@@ -139,7 +137,6 @@ def test_release_docs_explain_beta_lane_and_npm_immutability():
         "GitHub release creation fails",
         "npm `E409`",
         "diff-style gap check",
-        "smart-search smoke --mock --format json",
         "Windows npm/mise wrapper is emitting UTF-8 JSON",
     ]
     for marker in contract_markers:
@@ -152,8 +149,6 @@ def test_current_stable_release_notes_describe_user_visible_changes():
 
     required_markers = [
         "GitHub issue #7",
-        "smart-search skills status",
-        "smart-search skills update",
         "smart-search diagnose openai-compatible",
         "Context7",
         "Exa",

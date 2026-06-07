@@ -6,24 +6,17 @@ from pathlib import Path
 class Config:
     _instance = None
     _SETUP_COMMAND = (
-        "Run `smart-search setup`, or configure XAI_API_KEY and/or "
-        "OPENAI_COMPATIBLE_API_URL plus OPENAI_COMPATIBLE_API_KEY, then run "
-        "`smart-search doctor --format json`."
+        "Run `smart-search setup`, or configure OPENAI_COMPATIBLE_API_URL plus "
+        "OPENAI_COMPATIBLE_API_KEY, then run `smart-search doctor --format json`."
     )
-    _DEFAULT_MODEL = "grok-4-fast"
-    _DEFAULT_XAI_TOOLS = "web_search,x_search"
+    _DEFAULT_MODEL = "grok-4.20-multi-agent-xhigh"
     _DEFAULT_VALIDATION_LEVEL = "balanced"
     _DEFAULT_FALLBACK_MODE = "auto"
     _DEFAULT_MINIMUM_PROFILE = "standard"
-    _ALLOWED_XAI_TOOLS = {"web_search", "x_search"}
     _ALLOWED_VALIDATION_LEVELS = {"fast", "balanced", "strict"}
     _ALLOWED_FALLBACK_MODES = {"auto", "off"}
     _ALLOWED_MINIMUM_PROFILES = {"standard", "off"}
     _CONFIG_KEYS = {
-        "XAI_API_URL",
-        "XAI_API_KEY",
-        "XAI_MODEL",
-        "XAI_TOOLS",
         "OPENAI_COMPATIBLE_API_URL",
         "OPENAI_COMPATIBLE_API_KEY",
         "OPENAI_COMPATIBLE_MODEL",
@@ -43,11 +36,6 @@ class Config:
         "ZHIPU_API_URL",
         "ZHIPU_SEARCH_ENGINE",
         "ZHIPU_TIMEOUT_SECONDS",
-        "ZHIPU_MCP_API_KEY",
-        "ZHIPU_MCP_SEARCH_API_URL",
-        "ZHIPU_MCP_READER_API_URL",
-        "ZHIPU_MCP_ZREAD_API_URL",
-        "ZHIPU_MCP_TIMEOUT_SECONDS",
         "JINA_API_KEY",
         "JINA_READER_API_URL",
         "JINA_RESPOND_WITH",
@@ -58,9 +46,6 @@ class Config:
         "TAVILY_TIMEOUT_SECONDS",
         "FIRECRAWL_API_KEY",
         "FIRECRAWL_API_URL",
-        "ANYSEARCH_API_KEY",
-        "ANYSEARCH_API_URL",
-        "ANYSEARCH_TIMEOUT_SECONDS",
         "SMART_SEARCH_DEBUG",
         "SMART_SEARCH_LOG_LEVEL",
         "SMART_SEARCH_LOG_DIR",
@@ -222,10 +207,6 @@ class Config:
         config_data[key] = value
         self._save_config_file(config_data)
         if key in {
-            "XAI_API_URL",
-            "XAI_API_KEY",
-            "XAI_MODEL",
-            "XAI_TOOLS",
             "OPENAI_COMPATIBLE_API_URL",
             "OPENAI_COMPATIBLE_API_KEY",
             "OPENAI_COMPATIBLE_MODEL",
@@ -247,10 +228,6 @@ class Config:
                 config_data.pop(old_key, None)
         self._save_config_file(config_data)
         if key in {
-            "XAI_API_URL",
-            "XAI_API_KEY",
-            "XAI_MODEL",
-            "XAI_TOOLS",
             "OPENAI_COMPATIBLE_API_URL",
             "OPENAI_COMPATIBLE_API_KEY",
             "OPENAI_COMPATIBLE_MODEL",
@@ -292,22 +269,6 @@ class Config:
         return int(self._get_config_value("SMART_SEARCH_RETRY_MAX_WAIT", "10") or "10")
 
     @property
-    def xai_api_url(self) -> str:
-        return self._get_config_value("XAI_API_URL", "https://api.x.ai/v1") or "https://api.x.ai/v1"
-
-    @property
-    def xai_api_key(self) -> str | None:
-        return self._get_config_value("XAI_API_KEY")
-
-    @property
-    def xai_model(self) -> str:
-        return self._get_config_value("XAI_MODEL") or self._base_model_value()
-
-    @property
-    def xai_tools_raw(self) -> str:
-        return self._get_config_value("XAI_TOOLS", self._DEFAULT_XAI_TOOLS) or self._DEFAULT_XAI_TOOLS
-
-    @property
     def openai_compatible_api_url(self) -> str | None:
         return self._get_config_value("OPENAI_COMPATIBLE_API_URL")
 
@@ -322,28 +283,7 @@ class Config:
 
     @property
     def openai_compatible_stream(self) -> bool:
-        return (self._get_config_value("OPENAI_COMPATIBLE_STREAM", "false") or "false").lower() in ("true", "1", "yes")
-
-    def parse_xai_tools(self, raw: str | None = None) -> list[str]:
-        raw = raw or self.xai_tools_raw
-        tools: list[str] = []
-        invalid: list[str] = []
-        seen: set[str] = set()
-        for item in raw.split(","):
-            tool = item.strip().lower()
-            if not tool:
-                continue
-            if tool not in self._ALLOWED_XAI_TOOLS:
-                invalid.append(tool)
-                continue
-            if tool not in seen:
-                seen.add(tool)
-                tools.append(tool)
-        if invalid:
-            allowed = ", ".join(sorted(self._ALLOWED_XAI_TOOLS))
-            invalid_text = ", ".join(invalid)
-            raise ValueError(f"Invalid XAI_TOOLS: {invalid_text}. Supported values: {allowed}")
-        return tools
+        return (self._get_config_value("OPENAI_COMPATIBLE_STREAM", "true") or "true").lower() in ("true", "1", "yes")
 
     def _validated_enum(self, key: str, default: str, allowed: set[str]) -> str:
         value = (self._get_config_value(key, default) or default).strip().lower()
@@ -416,7 +356,7 @@ class Config:
 
     @property
     def tavily_timeout(self) -> float:
-        return float(self._get_config_value("TAVILY_TIMEOUT_SECONDS", "30") or "30")
+        return float(self._get_config_value("TAVILY_TIMEOUT_SECONDS", "60") or "60")
 
     @property
     def firecrawl_api_url(self) -> str:
@@ -425,18 +365,6 @@ class Config:
     @property
     def firecrawl_api_key(self) -> str | None:
         return self._get_config_value("FIRECRAWL_API_KEY")
-
-    @property
-    def anysearch_api_url(self) -> str:
-        return self._get_config_value("ANYSEARCH_API_URL", "https://api.anysearch.com/mcp") or "https://api.anysearch.com/mcp"
-
-    @property
-    def anysearch_api_key(self) -> str | None:
-        return self._get_config_value("ANYSEARCH_API_KEY")
-
-    @property
-    def anysearch_timeout(self) -> float:
-        return float(self._get_config_value("ANYSEARCH_TIMEOUT_SECONDS", "30") or "30")
 
     @property
     def log_level(self) -> str:
@@ -498,7 +426,7 @@ class Config:
 
     @property
     def exa_timeout(self) -> float:
-        return float(self._get_config_value("EXA_TIMEOUT_SECONDS", "30") or "30")
+        return float(self._get_config_value("EXA_TIMEOUT_SECONDS", "60") or "60")
 
     @property
     def context7_api_key(self) -> str | None:
@@ -510,7 +438,7 @@ class Config:
 
     @property
     def context7_timeout(self) -> float:
-        return float(self._get_config_value("CONTEXT7_TIMEOUT_SECONDS", "30") or "30")
+        return float(self._get_config_value("CONTEXT7_TIMEOUT_SECONDS", "60") or "60")
 
     @property
     def zhipu_api_key(self) -> str | None:
@@ -526,36 +454,7 @@ class Config:
 
     @property
     def zhipu_timeout(self) -> float:
-        return float(self._get_config_value("ZHIPU_TIMEOUT_SECONDS", "30") or "30")
-
-    @property
-    def zhipu_mcp_api_key(self) -> str | None:
-        return self._get_config_value("ZHIPU_MCP_API_KEY")
-
-    @property
-    def zhipu_mcp_search_api_url(self) -> str:
-        return self._get_config_value(
-            "ZHIPU_MCP_SEARCH_API_URL",
-            "https://open.bigmodel.cn/api/mcp/web_search_prime/mcp",
-        ) or "https://open.bigmodel.cn/api/mcp/web_search_prime/mcp"
-
-    @property
-    def zhipu_mcp_reader_api_url(self) -> str:
-        return self._get_config_value(
-            "ZHIPU_MCP_READER_API_URL",
-            "https://open.bigmodel.cn/api/mcp/web_reader/mcp",
-        ) or "https://open.bigmodel.cn/api/mcp/web_reader/mcp"
-
-    @property
-    def zhipu_mcp_zread_api_url(self) -> str:
-        return self._get_config_value(
-            "ZHIPU_MCP_ZREAD_API_URL",
-            "https://open.bigmodel.cn/api/mcp/zread/mcp",
-        ) or "https://open.bigmodel.cn/api/mcp/zread/mcp"
-
-    @property
-    def zhipu_mcp_timeout(self) -> float:
-        return float(self._get_config_value("ZHIPU_MCP_TIMEOUT_SECONDS", "30") or "30")
+        return float(self._get_config_value("ZHIPU_TIMEOUT_SECONDS", "60") or "60")
 
     @property
     def jina_api_key(self) -> str | None:
@@ -571,13 +470,12 @@ class Config:
 
     @property
     def jina_timeout(self) -> float:
-        return float(self._get_config_value("JINA_TIMEOUT_SECONDS", "30") or "30")
+        return float(self._get_config_value("JINA_TIMEOUT_SECONDS", "60") or "60")
 
     def get_config_info(self) -> dict:
         config_parameter_errors: list[str] = []
         explicit_main_configured = bool(
-            self.xai_api_key
-            or (self.openai_compatible_api_url and self.openai_compatible_api_key)
+            self.openai_compatible_api_url and self.openai_compatible_api_key
         )
         if explicit_main_configured:
             config_status = "ok: 配置完整"
@@ -604,10 +502,6 @@ class Config:
             config_status = f"config_error: {'; '.join(config_parameter_errors)}"
 
         return {
-            "XAI_API_URL": self.xai_api_url,
-            "XAI_API_KEY": self._mask_api_key(self.xai_api_key) if self.xai_api_key else "未配置",
-            "XAI_MODEL": self.xai_model,
-            "XAI_TOOLS": self.xai_tools_raw,
             "OPENAI_COMPATIBLE_API_URL": self.openai_compatible_api_url or "未配置",
             "OPENAI_COMPATIBLE_API_KEY": self._mask_api_key(self.openai_compatible_api_key) if self.openai_compatible_api_key else "未配置",
             "OPENAI_COMPATIBLE_MODEL": self.openai_compatible_model,
@@ -629,9 +523,6 @@ class Config:
             "TAVILY_TIMEOUT_SECONDS": self.tavily_timeout,
             "FIRECRAWL_API_URL": self.firecrawl_api_url,
             "FIRECRAWL_API_KEY": self._mask_api_key(self.firecrawl_api_key) if self.firecrawl_api_key else "未配置",
-            "ANYSEARCH_API_URL": self.anysearch_api_url,
-            "ANYSEARCH_API_KEY": self._mask_api_key(self.anysearch_api_key) if self.anysearch_api_key else "未配置",
-            "ANYSEARCH_TIMEOUT_SECONDS": self.anysearch_timeout,
             "SMART_SEARCH_OUTPUT_CLEANUP": self.output_cleanup_enabled,
             "SMART_SEARCH_LOG_TO_FILE": self.log_to_file_enabled,
             "SSL_VERIFY": self.ssl_verify_enabled,
@@ -645,16 +536,11 @@ class Config:
             "ZHIPU_API_URL": self.zhipu_api_url,
             "ZHIPU_SEARCH_ENGINE": self.zhipu_search_engine,
             "ZHIPU_TIMEOUT_SECONDS": self.zhipu_timeout,
-            "ZHIPU_MCP_API_KEY": self._mask_api_key(self.zhipu_mcp_api_key) if self.zhipu_mcp_api_key else "未配置",
-            "ZHIPU_MCP_SEARCH_API_URL": self.zhipu_mcp_search_api_url,
-            "ZHIPU_MCP_READER_API_URL": self.zhipu_mcp_reader_api_url,
-            "ZHIPU_MCP_ZREAD_API_URL": self.zhipu_mcp_zread_api_url,
-            "ZHIPU_MCP_TIMEOUT_SECONDS": self.zhipu_mcp_timeout,
             "JINA_API_KEY": self._mask_api_key(self.jina_api_key) if self.jina_api_key else "未配置",
             "JINA_READER_API_URL": self.jina_reader_api_url,
             "JINA_RESPOND_WITH": self.jina_respond_with,
             "JINA_TIMEOUT_SECONDS": self.jina_timeout,
-            "primary_api_mode": "xai-responses" if self.xai_api_key else ("chat-completions" if self.openai_compatible_api_url and self.openai_compatible_api_key else "未配置"),
+            "primary_api_mode": "chat-completions" if (self.openai_compatible_api_url and self.openai_compatible_api_key) else "未配置",
             "primary_api_mode_source": "config_file" if explicit_main_configured else "default",
             "config_file": str(self.config_file),
             "config_dir": str(self.config_file.parent),

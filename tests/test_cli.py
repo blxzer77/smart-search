@@ -2,7 +2,6 @@ import json
 import asyncio
 from pathlib import Path
 from smart_search import cli
-from smart_search import skill_installer
 
 
 class GbkStdout:
@@ -30,7 +29,6 @@ def test_help_contains_commands(capsys):
     out = capsys.readouterr().out
     assert "search" in out
     assert "doctor" in out
-    assert "regression" in out
 
 
 def test_version_flags_exit_successfully(monkeypatch, capsys):
@@ -53,35 +51,17 @@ def test_each_subcommand_help_exits_successfully(capsys):
         ["exa-search", "--help"],
         ["exa-similar", "--help"],
         ["zhipu-search", "--help"],
-        ["zhipu-mcp-search", "--help"],
-        ["zhipu-mcp-reader", "--help"],
-        ["zhipu-mcp-search-doc", "--help"],
-        ["zhipu-mcp-repo-structure", "--help"],
-        ["zhipu-mcp-read-file", "--help"],
-        ["anysearch-domains", "--help"],
-        ["anysearch-search", "--help"],
-        ["anysearch-extract", "--help"],
-        ["anysearch-batch", "--help"],
         ["context7-library", "--help"],
         ["context7-docs", "--help"],
-        ["deep", "--help"],
-        ["smoke", "--help"],
         ["doctor", "--help"],
         ["diagnose", "--help"],
         ["diagnose", "openai-compatible", "--help"],
-        ["skills", "--help"],
-        ["skills", "status", "--help"],
-        ["skills", "update", "--help"],
         ["setup", "--help"],
         ["config", "--help"],
         ["config", "path", "--help"],
         ["config", "list", "--help"],
         ["config", "set", "--help"],
         ["config", "unset", "--help"],
-        ["model", "--help"],
-        ["model", "set", "--help"],
-        ["model", "current", "--help"],
-        ["regression", "--help"],
     ]
 
     for command in commands:
@@ -92,7 +72,6 @@ def test_each_subcommand_help_exits_successfully(capsys):
 
     out = capsys.readouterr().out
     assert "usage: smart-search search" in out
-    assert "usage: smart-search regression" in out
 
 
 def test_command_aliases_parse_to_canonical_commands():
@@ -107,30 +86,15 @@ def test_command_aliases_parse_to_canonical_commands():
         (["xs", "https://example.com"], "exa-similar"),
         (["z", "query"], "zhipu-search"),
         (["zp", "query"], "zhipu-search"),
-        (["zmcp-search", "query"], "zhipu-mcp-search"),
-        (["zmcp-reader", "https://example.com"], "zhipu-mcp-reader"),
-        (["zmcp-doc", "owner/repo", "install"], "zhipu-mcp-search-doc"),
-        (["zmcp-tree", "owner/repo"], "zhipu-mcp-repo-structure"),
-        (["zmcp-file", "owner/repo", "README.md"], "zhipu-mcp-read-file"),
-        (["as-domains"], "anysearch-domains"),
-        (["as-search", "query"], "anysearch-search"),
-        (["as", "query"], "anysearch-search"),
-        (["as-extract", "https://example.com"], "anysearch-extract"),
-        (["as-batch", "a", "b"], "anysearch-batch"),
         (["c7", "react"], "context7-library"),
         (["ctx7", "react"], "context7-library"),
         (["c7d", "/facebook/react", "hooks"], "context7-docs"),
         (["c7docs", "/facebook/react", "hooks"], "context7-docs"),
         (["ctx7-docs", "/facebook/react", "hooks"], "context7-docs"),
-        (["dr", "query"], "deep"),
-        (["sm"], "smoke"),
         (["d"], "doctor"),
         (["diag", "openai-compatible"], "diagnose"),
-        (["skill", "status"], "skills"),
         (["init", "--non-interactive"], "setup"),
         (["cfg", "ls"], "config"),
-        (["mdl", "cur"], "model"),
-        (["reg"], "regression"),
     ]
 
     for argv, command in command_cases:
@@ -140,27 +104,12 @@ def test_command_aliases_parse_to_canonical_commands():
         (["cfg", "p"], "path"),
         (["cfg", "ls"], "list"),
         (["cfg", "l"], "list"),
-        (["cfg", "s", "XAI_MODEL", "grok"], "set"),
-        (["cfg", "rm", "XAI_MODEL"], "unset"),
-        (["cfg", "u", "XAI_MODEL"], "unset"),
+        (["cfg", "s", "OPENAI_COMPATIBLE_MODEL", "grok"], "set"),
+        (["cfg", "rm", "OPENAI_COMPATIBLE_MODEL"], "unset"),
+        (["cfg", "u", "OPENAI_COMPATIBLE_MODEL"], "unset"),
     ]
     for argv, config_command in config_cases:
         assert parser.parse_args(argv).config_command == config_command
-
-    model_cases = [
-        (["mdl", "s", "grok"], "set"),
-        (["mdl", "cur"], "current"),
-        (["mdl", "c"], "current"),
-    ]
-    for argv, model_command in model_cases:
-        assert parser.parse_args(argv).model_command == model_command
-
-    skills_cases = [
-        (["skills", "st"], "status"),
-        (["skills", "up"], "update"),
-    ]
-    for argv, skills_command in skills_cases:
-        assert parser.parse_args(argv).skills_command == skills_command
 
 
 def test_search_help_exposes_timeout(capsys):
@@ -355,18 +304,18 @@ def test_doctor_markdown_outputs_human_health_report(monkeypatch, capsys):
             "resolved_log_dir": "C:/tmp/logs",
             "file_logging_enabled": False,
             "config_status": "ok: complete",
-            "XAI_API_KEY": "未配置",
+            "OPENAI_COMPATIBLE_API_KEY": "未配置",
             "SMART_SEARCH_LOG_DIR": "logs",
             "config_sources": {
-                "XAI_API_KEY": "default",
+                "OPENAI_COMPATIBLE_API_KEY": "default",
                 "SMART_SEARCH_LOG_DIR": "default",
             },
             "minimum_profile_ok": True,
             "minimum_profile_missing": [],
             "capability_status": {
-                "main_search": {"ok": True, "configured": ["openai-compatible"], "fallback_chain": ["xai-responses", "openai-compatible"]},
+                "main_search": {"ok": True, "configured": ["openai-compatible"], "fallback_chain": ["openai-compatible"]},
                 "docs_search": {"ok": True, "configured": ["context7"], "fallback_chain": ["context7", "exa"]},
-                "web_fetch": {"ok": True, "configured": ["tavily", "jina"], "fallback_chain": ["tavily", "jina", "zhipu-mcp-reader", "firecrawl"]},
+                "web_fetch": {"ok": True, "configured": ["tavily", "jina"], "fallback_chain": ["tavily", "jina", "firecrawl"]},
             },
             "main_search_connection_tests": {
                 "openai-compatible": {
@@ -383,7 +332,6 @@ def test_doctor_markdown_outputs_human_health_report(monkeypatch, capsys):
             "jina_connection_test": {"status": "ok", "message": "Jina ok", "response_time_ms": 10.0},
             "firecrawl_connection_test": {"status": "configured", "message": "key configured"},
             "zhipu_connection_test": {"status": "warning", "message": "HTTP 429"},
-            "zhipu_mcp_connection_test": {"status": "not_configured", "message": "missing"},
             "context7_connection_test": {"status": "not_configured", "message": "missing"},
         }
 
@@ -407,7 +355,7 @@ def test_doctor_markdown_outputs_human_health_report(monkeypatch, capsys):
     assert "Resolved log dir: `C:/tmp/logs`" in out
     assert "File logging enabled: NO" in out
     assert "## Configuration Values" in out
-    assert "| XAI_API_KEY | default | 未配置 |" in out
+    assert "| OPENAI_COMPATIBLE_API_KEY | default | 未配置 |" in out
     assert "## Capabilities" in out
     assert "## Main Search Providers" in out
     assert "openai-compatible" in out
@@ -424,7 +372,7 @@ def test_doctor_content_outputs_non_empty_summary(monkeypatch, capsys):
             "config_status": "missing config",
             "minimum_profile_ok": False,
             "capability_status": {
-                "main_search": {"ok": False, "configured": [], "fallback_chain": ["xai-responses", "openai-compatible"]}
+                "main_search": {"ok": False, "configured": [], "fallback_chain": ["openai-compatible"]}
             },
             "error": "Missing required capability: main_search",
             "error_type": "config_error",
@@ -468,93 +416,6 @@ def test_fetch_alias_uses_canonical_command(monkeypatch, capsys):
 
     assert code == cli.EXIT_OK
     assert json.loads(capsys.readouterr().out)["url"] == "https://example.com"
-
-
-def test_deep_outputs_offline_plan(monkeypatch, capsys):
-    captured = {}
-
-    def fake_plan(query, budget="standard", evidence_dir=""):
-        captured["query"] = query
-        captured["budget"] = budget
-        captured["evidence_dir"] = evidence_dir
-        return {
-            "ok": True,
-            "mode": "deep_research",
-            "query_mode": "deep",
-            "question": query,
-            "trigger_source": "explicit_cli",
-            "difficulty": "standard",
-            "intent_signals": {},
-            "decomposition": [],
-            "capability_plan": [],
-            "evidence_policy": "fetch_before_claim",
-            "preflight": {"executed_by_deep_command": False},
-            "steps": [],
-            "gap_check": {"required": True},
-            "final_answer_policy": "cite fetched evidence",
-            "usage_boundary": {"deep": "offline planner"},
-        }
-
-    async def should_not_run_provider(*args, **kwargs):
-        raise AssertionError("deep planner must not call providers")
-
-    monkeypatch.setattr(cli.service, "build_deep_research_plan", fake_plan)
-    monkeypatch.setattr(cli.service, "search", should_not_run_provider)
-    monkeypatch.setattr(cli.service, "doctor", should_not_run_provider)
-
-    code = cli.main([
-        "deep",
-        "深度搜索一下最近的比特币行情",
-        "--budget",
-        "deep",
-        "--evidence-dir",
-        "C:/tmp/custom-evidence",
-        "--format",
-        "json",
-    ])
-
-    data = json.loads(capsys.readouterr().out)
-    assert code == cli.EXIT_OK
-    assert captured == {
-        "query": "深度搜索一下最近的比特币行情",
-        "budget": "deep",
-        "evidence_dir": "C:/tmp/custom-evidence",
-    }
-    assert data["mode"] == "deep_research"
-    assert data["preflight"]["executed_by_deep_command"] is False
-
-
-def test_deep_alias_and_markdown_output(monkeypatch, capsys):
-    def fake_plan(query, budget="standard", evidence_dir=""):
-        return {
-            "ok": True,
-            "mode": "deep_research",
-            "question": query,
-            "difficulty": "standard",
-            "evidence_policy": "fetch_before_claim",
-            "usage_boundary": {"search": "fast", "deep": "planner", "execution": "execute steps"},
-            "decomposition": [{"id": "sq1", "question": "Subquestion"}],
-            "steps": [
-                {
-                    "id": "s1",
-                    "subquestion_id": "sq1",
-                    "tool": "fetch",
-                    "purpose": "fetch evidence",
-                    "command": "smart-search fetch \"https://example.com\" --format markdown",
-                }
-            ],
-            "gap_check": {"rule": "fetch missing evidence"},
-        }
-
-    monkeypatch.setattr(cli.service, "build_deep_research_plan", fake_plan)
-
-    code = cli.main(["dr", "React useEffect 最新文档", "--format", "markdown"])
-
-    out = capsys.readouterr().out
-    assert code == cli.EXIT_OK
-    assert "# Deep Research Plan" in out
-    assert "React useEffect 最新文档" in out
-    assert "smart-search fetch" in out
 
 
 def test_research_command_uses_service_and_outputs_json(monkeypatch, capsys, tmp_path):
@@ -768,14 +629,14 @@ def test_markdown_search_labels_primary_and_extra_sources(monkeypatch, capsys):
 
 def test_config_error_exit_code(monkeypatch, capsys):
     async def fake_doctor():
-        return {"ok": False, "error_type": "config_error", "XAI_API_KEY": "未配置"}
+        return {"ok": False, "error_type": "config_error", "OPENAI_COMPATIBLE_API_KEY": "未配置"}
 
     monkeypatch.setattr(cli.service, "doctor", fake_doctor)
 
     code = cli.main(["doctor"])
 
     assert code == cli.EXIT_CONFIG_ERROR
-    assert json.loads(capsys.readouterr().out)["XAI_API_KEY"] == "未配置"
+    assert json.loads(capsys.readouterr().out)["OPENAI_COMPATIBLE_API_KEY"] == "未配置"
 
 
 def test_network_error_exit_code(monkeypatch, capsys):
@@ -820,7 +681,6 @@ def test_real_doctor_ignores_legacy_primary_env_and_returns_config_exit(monkeypa
     secret = "placeholder-test-secret"
     monkeypatch.setenv("SMART_SEARCH_API_URL", "https://api.example.com/v1")
     monkeypatch.setenv("SMART_SEARCH_API_KEY", secret)
-    monkeypatch.delenv("XAI_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_COMPATIBLE_API_URL", raising=False)
     monkeypatch.delenv("OPENAI_COMPATIBLE_API_KEY", raising=False)
     monkeypatch.delenv("EXA_API_KEY", raising=False)
@@ -840,51 +700,18 @@ def test_real_doctor_ignores_legacy_primary_env_and_returns_config_exit(monkeypa
     assert secret not in out
 
 
-def test_model_set_returns_parameter_error(monkeypatch, capsys):
-    def fake_set_model(model):
-        return {
-            "ok": False,
-            "error_type": "parameter_error",
-            "error": "Use XAI_MODEL or OPENAI_COMPATIBLE_MODEL.",
-            "config_file": "C:/tmp/smart-search-config.json",
-        }
-
-    monkeypatch.setattr(cli.service, "set_model", fake_set_model)
-
-    code = cli.main(["model", "set", "grok-4-fast"])
-
-    assert code == cli.EXIT_PARAMETER_ERROR
-    assert json.loads(capsys.readouterr().out)["error_type"] == "parameter_error"
-
-
-def test_model_aliases_use_canonical_commands(monkeypatch, capsys):
-    def fake_current_model():
-        return {"ok": True, "current_model": "grok-4-fast"}
-
-    def fake_set_model(model):
-        return {"ok": False, "error_type": "parameter_error", "error": "Use explicit provider model keys."}
-
-    monkeypatch.setattr(cli.service, "current_model", fake_current_model)
-    monkeypatch.setattr(cli.service, "set_model", fake_set_model)
-
-    assert cli.main(["mdl", "cur"]) == cli.EXIT_OK
-    assert json.loads(capsys.readouterr().out)["current_model"] == "grok-4-fast"
-    assert cli.main(["mdl", "s", "grok-4-fast"]) == cli.EXIT_PARAMETER_ERROR
-    assert json.loads(capsys.readouterr().out)["error_type"] == "parameter_error"
-
-
 def test_config_set_masks_value(monkeypatch, capsys):
     def fake_config_set(key, value):
-        return {"ok": True, "key": key, "value": "xai-********cret", "config_file": "C:/tmp/config.json"}
+        return {"ok": True, "key": key, "value": "relay-********cret", "config_file": "C:/tmp/config.json"}
 
     monkeypatch.setattr(cli.service, "config_set", fake_config_set)
 
-    code = cli.main(["config", "set", "XAI_API_KEY", "xai-test-secret"])
+    code = cli.main(["config", "set", "OPENAI_COMPATIBLE_API_KEY", "relay-test-secret"])
 
     out = capsys.readouterr().out
     assert code == cli.EXIT_OK
-    assert "xai-test-secret" not in out
-    assert json.loads(out)["value"] == "xai-********cret"
+    assert "relay-test-secret" not in out
+    assert json.loads(out)["value"] == "relay-********cret"
 
 
 def test_config_list_does_not_request_secrets(monkeypatch, capsys):
@@ -892,7 +719,7 @@ def test_config_list_does_not_request_secrets(monkeypatch, capsys):
 
     def fake_config_list(show_secrets=False):
         captured["show_secrets"] = show_secrets
-        return {"ok": True, "values": {"XAI_API_KEY": "xai-********cret"}}
+        return {"ok": True, "values": {"OPENAI_COMPATIBLE_API_KEY": "relay-********cret"}}
 
     monkeypatch.setattr(cli.service, "config_list", fake_config_list)
 
@@ -900,7 +727,7 @@ def test_config_list_does_not_request_secrets(monkeypatch, capsys):
 
     assert code == cli.EXIT_OK
     assert captured["show_secrets"] is False
-    assert json.loads(capsys.readouterr().out)["values"]["XAI_API_KEY"].endswith("cret")
+    assert json.loads(capsys.readouterr().out)["values"]["OPENAI_COMPATIBLE_API_KEY"].endswith("cret")
 
 
 def test_config_aliases_use_canonical_commands(monkeypatch, capsys):
@@ -908,7 +735,7 @@ def test_config_aliases_use_canonical_commands(monkeypatch, capsys):
 
     def fake_config_list(show_secrets=False):
         captured["show_secrets"] = show_secrets
-        return {"ok": True, "values": {"XAI_MODEL": "grok"}}
+        return {"ok": True, "values": {"OPENAI_COMPATIBLE_MODEL": "grok"}}
 
     def fake_config_set(key, value):
         captured["set"] = (key, value)
@@ -923,16 +750,16 @@ def test_config_aliases_use_canonical_commands(monkeypatch, capsys):
     monkeypatch.setattr(cli.service, "config_unset", fake_config_unset)
 
     assert cli.main(["cfg", "ls"]) == cli.EXIT_OK
-    assert json.loads(capsys.readouterr().out)["values"]["XAI_MODEL"] == "grok"
+    assert json.loads(capsys.readouterr().out)["values"]["OPENAI_COMPATIBLE_MODEL"] == "grok"
     assert captured["show_secrets"] is False
 
-    assert cli.main(["cfg", "s", "XAI_MODEL", "grok-4-fast"]) == cli.EXIT_OK
+    assert cli.main(["cfg", "s", "OPENAI_COMPATIBLE_MODEL", "grok-4-fast"]) == cli.EXIT_OK
     assert json.loads(capsys.readouterr().out)["value"] == "grok-4-fast"
-    assert captured["set"] == ("XAI_MODEL", "grok-4-fast")
+    assert captured["set"] == ("OPENAI_COMPATIBLE_MODEL", "grok-4-fast")
 
-    assert cli.main(["cfg", "rm", "XAI_MODEL"]) == cli.EXIT_OK
-    assert json.loads(capsys.readouterr().out)["key"] == "XAI_MODEL"
-    assert captured["unset"] == "XAI_MODEL"
+    assert cli.main(["cfg", "rm", "OPENAI_COMPATIBLE_MODEL"]) == cli.EXIT_OK
+    assert json.loads(capsys.readouterr().out)["key"] == "OPENAI_COMPATIBLE_MODEL"
+    assert captured["unset"] == "OPENAI_COMPATIBLE_MODEL"
 
 
 def test_config_set_legacy_main_search_key_returns_parameter_error(monkeypatch, capsys):
@@ -953,35 +780,6 @@ def test_config_set_legacy_main_search_key_returns_parameter_error(monkeypatch, 
     assert "Unsupported config key: SMART_SEARCH_API_KEY" in data["error"]
 
 
-def test_smoke_markdown_and_content_are_human_readable(monkeypatch, capsys):
-    async def fake_smoke(mode="mock"):
-        return {
-            "ok": True,
-            "mode": mode,
-            "failed_cases": [],
-            "degraded_cases": ["zhipu search"],
-            "cases": [
-                {"name": "doctor minimum profile", "ok": True},
-                {"name": "zhipu search", "ok": False, "severity": "degraded", "error": "HTTP 429"},
-            ],
-        }
-
-    monkeypatch.setattr(cli.service, "smoke", fake_smoke)
-
-    markdown_code = cli.main(["smoke", "--mock", "--format", "markdown"])
-    markdown_out = capsys.readouterr().out
-    content_code = cli.main(["smoke", "--mock", "--format", "content"])
-    content_out = capsys.readouterr().out
-
-    assert markdown_code == cli.EXIT_OK
-    assert "# Smart Search Smoke" in markdown_out
-    assert "zhipu search" in markdown_out
-    assert not markdown_out.lstrip().startswith("{")
-    assert content_code == cli.EXIT_OK
-    assert "Smoke mock OK" in content_out
-    assert "2 cases" in content_out
-
-
 def test_config_markdown_and_content_are_masked_and_non_json(monkeypatch, capsys):
     def fake_config_path():
         return {
@@ -998,10 +796,10 @@ def test_config_markdown_and_content_are_masked_and_non_json(monkeypatch, capsys
         }
 
     def fake_config_list(show_secrets=False):
-        return {"ok": True, "config_file": "C:/tmp/config.json", "values": {"XAI_API_KEY": "xai-********cret", "XAI_MODEL": "grok"}}
+        return {"ok": True, "config_file": "C:/tmp/config.json", "values": {"OPENAI_COMPATIBLE_API_KEY": "relay-********cret", "OPENAI_COMPATIBLE_MODEL": "grok"}}
 
     def fake_config_set(key, value):
-        return {"ok": True, "config_file": "C:/tmp/config.json", "key": key, "value": "xai-********cret"}
+        return {"ok": True, "config_file": "C:/tmp/config.json", "key": key, "value": "relay-********cret"}
 
     def fake_config_unset(key):
         return {"ok": True, "config_file": "C:/tmp/config.json", "key": key}
@@ -1020,46 +818,19 @@ def test_config_markdown_and_content_are_masked_and_non_json(monkeypatch, capsys
 
     assert cli.main(["config", "list", "--format", "markdown"]) == cli.EXIT_OK
     list_out = capsys.readouterr().out
-    assert "xai-test-secret" not in list_out
-    assert "xai-********cret" in list_out
+    assert "relay-test-secret" not in list_out
+    assert "relay-********cret" in list_out
     assert not list_out.lstrip().startswith("{")
 
-    assert cli.main(["config", "set", "XAI_API_KEY", "xai-test-secret", "--format", "markdown"]) == cli.EXIT_OK
+    assert cli.main(["config", "set", "OPENAI_COMPATIBLE_API_KEY", "relay-test-secret", "--format", "markdown"]) == cli.EXIT_OK
     set_out = capsys.readouterr().out
-    assert "xai-test-secret" not in set_out
-    assert "XAI_API_KEY" in set_out
+    assert "relay-test-secret" not in set_out
+    assert "OPENAI_COMPATIBLE_API_KEY" in set_out
 
-    assert cli.main(["config", "unset", "XAI_API_KEY", "--format", "content"]) == cli.EXIT_OK
+    assert cli.main(["config", "unset", "OPENAI_COMPATIBLE_API_KEY", "--format", "content"]) == cli.EXIT_OK
     unset_out = capsys.readouterr().out
     assert "Config OK" in unset_out
-    assert "key=XAI_API_KEY" in unset_out
-
-
-def test_model_markdown_and_content_are_human_readable(monkeypatch, capsys):
-    def fake_current_model():
-        return {
-            "ok": True,
-            "xai_model": "grok-4-fast",
-            "openai_compatible_model": "relay-model",
-            "config_file": "C:/tmp/config.json",
-        }
-
-    def fake_set_model(model):
-        return {"ok": False, "error_type": "parameter_error", "error": "Use explicit provider model keys."}
-
-    monkeypatch.setattr(cli.service, "current_model", fake_current_model)
-    monkeypatch.setattr(cli.service, "set_model", fake_set_model)
-
-    assert cli.main(["model", "current", "--format", "markdown"]) == cli.EXIT_OK
-    markdown_out = capsys.readouterr().out
-    assert "# Smart Search Model" in markdown_out
-    assert "grok-4-fast" in markdown_out
-    assert "relay-model" in markdown_out
-
-    assert cli.main(["model", "set", "grok", "--format", "content"]) == cli.EXIT_PARAMETER_ERROR
-    content_out = capsys.readouterr().out
-    assert "Model FAIL" in content_out
-    assert "Use explicit provider model keys." in content_out
+    assert "key=OPENAI_COMPATIBLE_API_KEY" in unset_out
 
 
 def test_provider_markdown_outputs_result_lists(monkeypatch, capsys):
@@ -1072,12 +843,6 @@ def test_provider_markdown_outputs_result_lists(monkeypatch, capsys):
     async def fake_zhipu_search(*args, **kwargs):
         return {"ok": True, "query": "news", "provider": "zhipu", "results": [{"title": "News", "url": "https://news.example.com", "description": "desc"}]}
 
-    async def fake_zhipu_mcp_search(*args, **kwargs):
-        return {"ok": True, "query": "news", "provider": "zhipu-mcp", "tool": "web_search_prime", "results": [{"title": "MCP News", "url": "https://mcp.example.com"}]}
-
-    async def fake_zhipu_mcp_reader(*args, **kwargs):
-        return {"ok": True, "url": "https://source.example.com", "provider": "zhipu-mcp-reader", "tool": "webReader", "content": "# MCP Page"}
-
     async def fake_context7_library(*args, **kwargs):
         return {"ok": True, "query": "react", "provider": "context7", "results": [{"id": "/facebook/react", "title": "React", "description": "docs"}]}
 
@@ -1087,8 +852,6 @@ def test_provider_markdown_outputs_result_lists(monkeypatch, capsys):
     monkeypatch.setattr(cli.service, "exa_search", fake_exa_search)
     monkeypatch.setattr(cli.service, "exa_find_similar", fake_exa_similar)
     monkeypatch.setattr(cli.service, "zhipu_search", fake_zhipu_search)
-    monkeypatch.setattr(cli.service, "zhipu_mcp_search", fake_zhipu_mcp_search)
-    monkeypatch.setattr(cli.service, "zhipu_mcp_reader", fake_zhipu_mcp_reader)
     monkeypatch.setattr(cli.service, "context7_library", fake_context7_library)
     monkeypatch.setattr(cli.service, "map_site", fake_map_site)
 
@@ -1096,8 +859,6 @@ def test_provider_markdown_outputs_result_lists(monkeypatch, capsys):
         (["exa-search", "query", "--format", "markdown"], "Example", "https://example.com"),
         (["exa-similar", "https://source.example.com", "--format", "markdown"], "Similar", "https://similar.example.com"),
         (["zhipu-search", "news", "--format", "markdown"], "News", "https://news.example.com"),
-        (["zhipu-mcp-search", "news", "--format", "markdown"], "MCP News", "https://mcp.example.com"),
-        (["zhipu-mcp-reader", "https://source.example.com", "--format", "markdown"], "MCP Page", "Zhipu Coding Plan MCP Reader"),
         (["context7-library", "react", "--format", "markdown"], "React", "/facebook/react"),
         (["map", "https://docs.example.com", "--format", "markdown"], "https://docs.example.com/api", "Site Map"),
     ]
@@ -1152,12 +913,6 @@ def test_all_formatted_commands_have_non_json_markdown(monkeypatch):
     async def fake_zhipu(*args, **kwargs):
         return {"ok": True, "results": [{"title": "News", "url": "https://news.example.com"}]}
 
-    async def fake_zhipu_mcp(*args, **kwargs):
-        return {"ok": True, "provider": "zhipu-mcp", "tool": "web_search_prime", "results": [{"title": "MCP", "url": "https://mcp.example.com"}]}
-
-    async def fake_zhipu_mcp_reader(*args, **kwargs):
-        return {"ok": True, "provider": "zhipu-mcp-reader", "tool": "webReader", "content": "MCP Page"}
-
     async def fake_c7_library(*args, **kwargs):
         return {"ok": True, "results": [{"id": "/lib", "title": "Library"}]}
 
@@ -1167,20 +922,14 @@ def test_all_formatted_commands_have_non_json_markdown(monkeypatch):
     async def fake_doctor():
         return {"ok": True, "config_status": "ok", "minimum_profile_ok": True}
 
-    async def fake_smoke(mode="mock"):
-        return {"ok": True, "mode": mode, "failed_cases": [], "cases": [{"name": "case", "ok": True}]}
-
     async def fake_research(query, budget="deep", evidence_dir="", fallback="auto"):
         return {"ok": True, "question": query, "content": "Research", "final_answer": "Research", "citations": [], "gap_check": {"gaps": []}}
-
-    def fake_plan(*args, **kwargs):
-        return {"ok": True, "mode": "deep_research", "question": "q", "difficulty": "standard", "evidence_policy": "fetch_before_claim"}
 
     def fake_config_path():
         return {"ok": True, "config_file": "C:/tmp/config.json"}
 
     def fake_config_list(show_secrets=False):
-        return {"ok": True, "values": {"XAI_MODEL": "grok"}}
+        return {"ok": True, "values": {"OPENAI_COMPATIBLE_MODEL": "grok"}}
 
     def fake_config_set(key, value):
         return {"ok": True, "key": key, "value": "***"}
@@ -1188,35 +937,20 @@ def test_all_formatted_commands_have_non_json_markdown(monkeypatch):
     def fake_config_unset(key):
         return {"ok": True, "key": key}
 
-    def fake_current_model():
-        return {"ok": True, "xai_model": "grok"}
-
-    def fake_set_model(model):
-        return {"ok": False, "error_type": "parameter_error", "error": "Use explicit provider model keys."}
-
     monkeypatch.setattr(cli.service, "search", fake_search)
     monkeypatch.setattr(cli.service, "fetch", fake_fetch)
     monkeypatch.setattr(cli.service, "map_site", fake_map)
     monkeypatch.setattr(cli.service, "exa_search", fake_exa)
     monkeypatch.setattr(cli.service, "exa_find_similar", fake_exa)
     monkeypatch.setattr(cli.service, "zhipu_search", fake_zhipu)
-    monkeypatch.setattr(cli.service, "zhipu_mcp_search", fake_zhipu_mcp)
-    monkeypatch.setattr(cli.service, "zhipu_mcp_reader", fake_zhipu_mcp_reader)
-    monkeypatch.setattr(cli.service, "zhipu_mcp_search_doc", fake_zhipu_mcp)
-    monkeypatch.setattr(cli.service, "zhipu_mcp_repo_structure", fake_zhipu_mcp)
-    monkeypatch.setattr(cli.service, "zhipu_mcp_read_file", fake_zhipu_mcp)
     monkeypatch.setattr(cli.service, "context7_library", fake_c7_library)
     monkeypatch.setattr(cli.service, "context7_docs", fake_c7_docs)
     monkeypatch.setattr(cli.service, "doctor", fake_doctor)
-    monkeypatch.setattr(cli.service, "smoke", fake_smoke)
     monkeypatch.setattr(cli.service, "research", fake_research)
-    monkeypatch.setattr(cli.service, "build_deep_research_plan", fake_plan)
     monkeypatch.setattr(cli.service, "config_path", fake_config_path)
     monkeypatch.setattr(cli.service, "config_list", fake_config_list)
     monkeypatch.setattr(cli.service, "config_set", fake_config_set)
     monkeypatch.setattr(cli.service, "config_unset", fake_config_unset)
-    monkeypatch.setattr(cli.service, "current_model", fake_current_model)
-    monkeypatch.setattr(cli.service, "set_model", fake_set_model)
 
     command_cases = [
         ("search", ["search", "query", "--format", "markdown"]),
@@ -1225,25 +959,15 @@ def test_all_formatted_commands_have_non_json_markdown(monkeypatch):
         ("exa-search", ["exa-search", "query", "--format", "markdown"]),
         ("exa-similar", ["exa-similar", "https://example.com", "--format", "markdown"]),
         ("zhipu-search", ["zhipu-search", "query", "--format", "markdown"]),
-        ("zhipu-mcp-search", ["zhipu-mcp-search", "query", "--format", "markdown"]),
-        ("zhipu-mcp-reader", ["zhipu-mcp-reader", "https://example.com", "--format", "markdown"]),
-        ("zhipu-mcp-search-doc", ["zhipu-mcp-search-doc", "owner/repo", "install", "--format", "markdown"]),
-        ("zhipu-mcp-repo-structure", ["zhipu-mcp-repo-structure", "owner/repo", "--format", "markdown"]),
-        ("zhipu-mcp-read-file", ["zhipu-mcp-read-file", "owner/repo", "README.md", "--format", "markdown"]),
         ("context7-library", ["context7-library", "react", "--format", "markdown"]),
         ("context7-docs", ["context7-docs", "/lib", "hooks", "--format", "markdown"]),
-        ("deep", ["deep", "query", "--format", "markdown"]),
         ("research", ["research", "query", "--format", "markdown"]),
-        ("smoke", ["smoke", "--format", "markdown"]),
         ("doctor", ["doctor", "--format", "markdown"]),
         ("diagnose", ["diagnose", "openai-compatible", "--format", "markdown"]),
-        ("skills-status", ["skills", "status", "--targets", "codex", "--format", "markdown"]),
         ("config-path", ["config", "path", "--format", "markdown"]),
         ("config-list", ["config", "list", "--format", "markdown"]),
-        ("config-set", ["config", "set", "XAI_MODEL", "grok", "--format", "markdown"]),
-        ("config-unset", ["config", "unset", "XAI_MODEL", "--format", "markdown"]),
-        ("model-current", ["model", "current", "--format", "markdown"]),
-        ("model-set", ["model", "set", "grok", "--format", "markdown"]),
+        ("config-set", ["config", "set", "OPENAI_COMPATIBLE_MODEL", "grok", "--format", "markdown"]),
+        ("config-unset", ["config", "unset", "OPENAI_COMPATIBLE_MODEL", "--format", "markdown"]),
     ]
 
     for name, argv in command_cases:
@@ -1255,21 +979,12 @@ def test_all_formatted_commands_have_non_json_markdown(monkeypatch):
             "exa-search": {"ok": True, "results": [{"title": "Example", "url": "https://example.com"}]},
             "exa-similar": {"ok": True, "results": [{"title": "Example", "url": "https://example.com"}]},
             "zhipu-search": {"ok": True, "results": [{"title": "News", "url": "https://news.example.com"}]},
-            "zhipu-mcp-search": {"ok": True, "provider": "zhipu-mcp", "tool": "web_search_prime", "results": [{"title": "MCP", "url": "https://mcp.example.com"}]},
-            "zhipu-mcp-reader": {"ok": True, "provider": "zhipu-mcp-reader", "tool": "webReader", "content": "MCP Page"},
-            "zhipu-mcp-search-doc": {"ok": True, "provider": "zhipu-mcp-zread", "tool": "search_doc", "results": [{"title": "Doc", "url": "https://docs.example.com"}]},
-            "zhipu-mcp-repo-structure": {"ok": True, "provider": "zhipu-mcp-zread", "tool": "get_repo_structure", "content": "tree"},
-            "zhipu-mcp-read-file": {"ok": True, "provider": "zhipu-mcp-zread", "tool": "read_file", "content": "file"},
             "context7-library": {"ok": True, "results": [{"id": "/lib", "title": "Library"}]},
             "context7-docs": {"ok": True, "library_id": "/lib", "query": "hooks", "content": "Docs"},
-            "deep": {"ok": True, "mode": "deep_research", "question": "q", "difficulty": "standard", "evidence_policy": "fetch_before_claim"},
             "research": {"ok": True, "question": "q", "content": "Research", "final_answer": "Research", "citations": [], "gap_check": {"gaps": []}},
-            "smoke": {"ok": True, "mode": "mock", "failed_cases": [], "cases": [{"name": "case", "ok": True}]},
             "doctor": {"ok": True, "config_status": "ok", "minimum_profile_ok": True},
             "diagnose": {"ok": True, "provider": "openai-compatible", "summary": "ok", "recommendation": "none"},
-            "skills": {"ok": True, "targets": [{"target": "codex", "status": "up_to_date"}], "status_counts": {"up_to_date": 1}},
-            "config": {"ok": True, "config_file": "C:/tmp/config.json", "values": {"XAI_MODEL": "grok"}},
-            "model": {"ok": True, "xai_model": "grok"},
+            "config": {"ok": True, "config_file": "C:/tmp/config.json", "values": {"OPENAI_COMPATIBLE_MODEL": "grok"}},
         }[command]
         rendered = cli._render(command, data, "markdown")
         assert rendered.strip(), name
@@ -1280,60 +995,13 @@ def test_non_content_commands_have_non_empty_content_fallback():
     cases = {
         "doctor": {"ok": True, "config_status": "ok", "minimum_profile_ok": True},
         "diagnose": {"ok": True, "provider": "openai-compatible", "summary": "ok", "recommendation": "none"},
-        "smoke": {"ok": True, "mode": "mock", "cases": [], "failed_cases": []},
         "config": {"ok": True, "config_file": "C:/tmp/config.json"},
-        "model": {"ok": True, "xai_model": "grok"},
-        "skills": {"ok": True, "targets": [{"target": "codex", "status": "up_to_date"}], "status_counts": {"up_to_date": 1}},
         "exa-search": {"ok": True, "results": [{"title": "Example", "url": "https://example.com"}]},
-        "anysearch-search": {"ok": True, "provider": "anysearch", "results": [{"title": "AnySearch", "url": ""}]},
     }
     for command, data in cases.items():
         rendered = cli._render(command, data, "content")
         assert rendered.strip(), command
         assert not rendered.lstrip().startswith("{"), command
-
-
-def test_skills_status_reports_missing_and_update_writes_target(tmp_path, capsys):
-    status_code = cli.main(["skills", "status", "--targets", "codex", "--skills-root", str(tmp_path), "--format", "json"])
-    status = json.loads(capsys.readouterr().out)
-
-    assert status_code == cli.EXIT_OK
-    assert status["selected"] == ["codex"]
-    assert status["targets"][0]["status"] == "missing"
-    assert status["targets"][0]["hash_match"] is False
-
-    update_code = cli.main(["skills", "update", "--targets", "codex", "--skills-root", str(tmp_path), "--format", "json"])
-    update = json.loads(capsys.readouterr().out)
-
-    assert update_code == cli.EXIT_OK
-    assert update["installed_count"] == 1
-    assert (tmp_path / ".codex" / "skills" / "smart-search-cli" / "SKILL.md").is_file()
-
-    status_code = cli.main(["skills", "status", "--targets", "codex", "--skills-root", str(tmp_path), "--format", "json"])
-    status = json.loads(capsys.readouterr().out)
-
-    assert status_code == cli.EXIT_OK
-    assert status["targets"][0]["status"] == "up_to_date"
-    assert status["targets"][0]["hash_match"] is True
-
-
-def test_skills_update_all_selects_every_target(tmp_path, capsys):
-    code = cli.main(["skills", "update", "--all", "--skills-root", str(tmp_path), "--format", "json"])
-    data = json.loads(capsys.readouterr().out)
-
-    assert code == cli.EXIT_OK
-    assert data["installed_count"] == len(skill_installer.SKILL_TARGETS)
-    assert set(data["selected"]) == {target.target_id for target in skill_installer.SKILL_TARGETS}
-
-
-def test_skills_unknown_target_returns_parameter_error(tmp_path, capsys):
-    code = cli.main(["skills", "status", "--targets", "unknown", "--skills-root", str(tmp_path), "--format", "json"])
-    data = json.loads(capsys.readouterr().out)
-
-    assert code == cli.EXIT_PARAMETER_ERROR
-    assert data["error_type"] == "parameter_error"
-    assert "Unknown skill target" in data["error"]
-    assert not (tmp_path / ".codex" / "skills" / "smart-search-cli").exists()
 
 
 def test_setup_non_interactive_saves_values(monkeypatch, capsys):
@@ -1349,12 +1017,6 @@ def test_setup_non_interactive_saves_values(monkeypatch, capsys):
     code = cli.main([
         "setup",
         "--non-interactive",
-        "--xai-api-key",
-        "xai-test-secret",
-        "--xai-model",
-        "xai-model",
-        "--xai-tools-explicit",
-        "web_search",
         "--openai-compatible-api-url",
         "https://relay.example.com/v1",
         "--openai-compatible-api-key",
@@ -1375,16 +1037,6 @@ def test_setup_non_interactive_saves_values(monkeypatch, capsys):
         "zhipu.example.com/api",
         "--zhipu-search-engine",
         "search_pro",
-        "--zhipu-mcp-key",
-        "zmcp-secret",
-        "--zhipu-mcp-search-api-url",
-        "https://zmcp.example.com/search",
-        "--zhipu-mcp-reader-api-url",
-        "https://zmcp.example.com/reader",
-        "--zhipu-mcp-zread-api-url",
-        "https://zmcp.example.com/zread",
-        "--zhipu-mcp-timeout",
-        "8",
         "--jina-key",
         "jina-secret",
         "--jina-reader-api-url",
@@ -1403,19 +1055,10 @@ def test_setup_non_interactive_saves_values(monkeypatch, capsys):
         "firecrawl.example.com/v2",
         "--firecrawl-key",
         "firecrawl-secret",
-        "--anysearch-api-url",
-        "anysearch.example.com/mcp",
-        "--anysearch-key",
-        "as-test-secret",
-        "--anysearch-timeout",
-        "9",
     ])
 
     out = capsys.readouterr().out
     assert code == cli.EXIT_OK
-    assert saved["XAI_API_KEY"] == "xai-test-secret"
-    assert saved["XAI_MODEL"] == "xai-model"
-    assert saved["XAI_TOOLS"] == "web_search"
     assert saved["OPENAI_COMPATIBLE_API_URL"] == "https://relay.example.com/v1"
     assert saved["OPENAI_COMPATIBLE_API_KEY"] == "relay-test-secret"
     assert saved["OPENAI_COMPATIBLE_MODEL"] == "relay-model"
@@ -1426,11 +1069,6 @@ def test_setup_non_interactive_saves_values(monkeypatch, capsys):
     assert saved["ZHIPU_API_KEY"] == "zhipu-secret"
     assert saved["ZHIPU_API_URL"] == "https://zhipu.example.com/api"
     assert saved["ZHIPU_SEARCH_ENGINE"] == "search_pro"
-    assert saved["ZHIPU_MCP_API_KEY"] == "zmcp-secret"
-    assert saved["ZHIPU_MCP_SEARCH_API_URL"] == "https://zmcp.example.com/search"
-    assert saved["ZHIPU_MCP_READER_API_URL"] == "https://zmcp.example.com/reader"
-    assert saved["ZHIPU_MCP_ZREAD_API_URL"] == "https://zmcp.example.com/zread"
-    assert saved["ZHIPU_MCP_TIMEOUT_SECONDS"] == "8"
     assert saved["JINA_API_KEY"] == "jina-secret"
     assert saved["JINA_READER_API_URL"] == "https://r.jina.ai"
     assert saved["JINA_RESPOND_WITH"] == "readerlm-v2"
@@ -1440,14 +1078,9 @@ def test_setup_non_interactive_saves_values(monkeypatch, capsys):
     assert saved["TAVILY_API_KEY"] == "th-test-secret"
     assert saved["FIRECRAWL_API_URL"] == "https://firecrawl.example.com/v2"
     assert saved["FIRECRAWL_API_KEY"] == "firecrawl-secret"
-    assert saved["ANYSEARCH_API_URL"] == "https://anysearch.example.com/mcp"
-    assert saved["ANYSEARCH_API_KEY"] == "as-test-secret"
-    assert saved["ANYSEARCH_TIMEOUT_SECONDS"] == "9"
-    assert "xai-test-secret" not in out
+    assert "relay-test-secret" not in out
     assert "th-test-secret" not in out
     assert "jina-secret" not in out
-    assert "zmcp-secret" not in out
-    assert "as-test-secret" not in out
 
 
 def test_setup_non_interactive_rejects_legacy_flags(capsys):
@@ -1456,7 +1089,6 @@ def test_setup_non_interactive_rejects_legacy_flags(capsys):
         ("--api-key", "sk-test-secret"),
         ("--api-mode", "chat-completions"),
         ("--model", "test-model"),
-        ("--xai-tools", "web_search"),
     ]:
         try:
             cli.main(["setup", "--non-interactive", flag, value])
@@ -1465,120 +1097,6 @@ def test_setup_non_interactive_rejects_legacy_flags(capsys):
         else:
             raise AssertionError(f"{flag} should be rejected by argparse")
         capsys.readouterr()
-
-
-def test_setup_non_interactive_installs_selected_skills_under_user_root_override(monkeypatch, tmp_path, capsys):
-    saved = {}
-
-    monkeypatch.setattr(cli.service, "config_set", lambda key, value: {"ok": True, "key": key, "value": "***"})
-    monkeypatch.setattr(cli.service, "config_path", lambda: {"ok": True, "config_file": "C:/tmp/config.json"})
-
-    code = cli.main([
-        "setup",
-        "--non-interactive",
-        "--install-skills",
-        "codex,claude,cursor",
-        "--skills-root",
-        str(tmp_path),
-    ])
-    data = json.loads(capsys.readouterr().out)
-
-    assert code == cli.EXIT_OK
-    assert saved == {}
-    assert data["skills"]["installed_count"] == 3
-    assert (tmp_path / ".codex" / "skills" / "smart-search-cli" / "SKILL.md").is_file()
-    assert (tmp_path / ".claude" / "skills" / "smart-search-cli" / "SKILL.md").is_file()
-    assert (tmp_path / ".cursor" / "skills" / "smart-search-cli" / "SKILL.md").is_file()
-
-
-def test_setup_non_interactive_installs_skill_under_home_by_default(monkeypatch, tmp_path, capsys):
-    fake_home = tmp_path / "home"
-
-    monkeypatch.setattr(cli.service, "config_set", lambda key, value: {"ok": True, "key": key, "value": "***"})
-    monkeypatch.setattr(cli.service, "config_path", lambda: {"ok": True, "config_file": "C:/tmp/config.json"})
-    monkeypatch.setattr(skill_installer.Path, "home", lambda: fake_home)
-
-    code = cli.main([
-        "setup",
-        "--non-interactive",
-        "--install-skills",
-        "codex,hermes-agent",
-    ])
-    data = json.loads(capsys.readouterr().out)
-
-    assert code == cli.EXIT_OK
-    assert data["skills"]["installed_count"] == 2
-    assert {item["target"] for item in data["skills"]["installed"]} == {"codex", "hermes"}
-    assert (fake_home / ".codex" / "skills" / "smart-search-cli" / "SKILL.md").is_file()
-    assert (fake_home / ".hermes" / "skills" / "smart-search-cli" / "SKILL.md").is_file()
-    assert not (tmp_path / "project" / ".codex" / "skills" / "smart-search-cli").exists()
-    assert not (tmp_path / "project" / ".hermes" / "skills" / "smart-search-cli").exists()
-
-
-def test_setup_skip_skills_writes_no_skill_files(monkeypatch, tmp_path, capsys):
-    monkeypatch.setattr(cli.service, "config_set", lambda key, value: {"ok": True, "key": key, "value": "***"})
-    monkeypatch.setattr(cli.service, "config_path", lambda: {"ok": True, "config_file": "C:/tmp/config.json"})
-
-    code = cli.main([
-        "setup",
-        "--non-interactive",
-        "--skip-skills",
-        "--install-skills",
-        "codex",
-        "--skills-root",
-        str(tmp_path),
-    ])
-    data = json.loads(capsys.readouterr().out)
-
-    assert code == cli.EXIT_OK
-    assert "skills" not in data
-    assert not (tmp_path / ".codex" / "skills" / "smart-search-cli").exists()
-
-
-def test_setup_unknown_skill_target_returns_parameter_error(monkeypatch, capsys):
-    monkeypatch.setattr(cli.service, "config_path", lambda: {"ok": True, "config_file": "C:/tmp/config.json"})
-
-    code = cli.main(["setup", "--non-interactive", "--install-skills", "unknown"])
-    data = json.loads(capsys.readouterr().out)
-
-    assert code == cli.EXIT_PARAMETER_ERROR
-    assert data["error_type"] == "parameter_error"
-    assert "Unknown skill target" in data["error"]
-
-
-def test_setup_guided_installs_tui_selected_skill_targets(monkeypatch, tmp_path, capsys):
-    saved = {}
-    answers = iter(["skip", "skip", "skip", "n"])
-    checkbox_calls = []
-
-    def fake_checkbox(message, choices):
-        checkbox_calls.append((message, choices))
-        if "AI tools" in message:
-            return ["codex", "cursor"]
-        return []
-
-    monkeypatch.setattr(cli, "_checkbox_with_tui", fake_checkbox)
-    monkeypatch.setattr(cli.service, "config_set", lambda key, value: {"ok": True, "key": key, "value": "***"})
-    monkeypatch.setattr(cli.service, "config_path", lambda: {"ok": True, "config_file": "C:/tmp/config.json"})
-    monkeypatch.setattr(cli.service, "config_list", lambda show_secrets=False: {"ok": True, "values": saved.copy()})
-    monkeypatch.setattr("builtins.input", lambda prompt: next(answers))
-
-    code = cli.main(["setup", "--lang", "en", "--skills-root", str(tmp_path)])
-    captured = capsys.readouterr()
-    data = json.loads(captured.out)
-
-    assert code == cli.EXIT_OK
-    assert data["skills"]["installed_count"] == 2
-    assert (tmp_path / ".codex" / "skills" / "smart-search-cli" / "SKILL.md").is_file()
-    assert (tmp_path / ".cursor" / "skills" / "smart-search-cli" / "SKILL.md").is_file()
-    skill_choices = next(choices for message, choices in checkbox_calls if "AI tools" in message)
-    skill_choice_names = [choice["name"] for choice in skill_choices]
-    assert "Codex (~/.codex/skills)" in skill_choice_names
-    assert "Cursor (~/.cursor/skills)" in skill_choice_names
-    assert not any("project/" in name for name in skill_choice_names)
-    assert "Install the smart-search-cli skill" in captured.err
-    assert "user-level AI tools" in captured.err
-    assert "Skill install result" in captured.err
 
 
 def test_setup_banner_falls_back_when_pyfiglet_unavailable(monkeypatch, capsys):
@@ -1596,69 +1114,6 @@ def test_setup_banner_falls_back_when_pyfiglet_unavailable(monkeypatch, capsys):
 
     assert "Smart Search" in captured.err
     assert "CLI-first multi-source search" in captured.err
-
-
-def test_skill_installer_parse_aliases_and_all(tmp_path):
-    assert skill_installer.parse_skill_targets("claude-code,github-copilot,agentskills,hermes-agent") == [
-        "claude",
-        "copilot",
-        "codex",
-        "hermes",
-    ]
-    assert len(skill_installer.parse_skill_targets("all")) == len(skill_installer.SKILL_TARGETS)
-
-    source = tmp_path / "source"
-    source.mkdir()
-    (source / "SKILL.md").write_text("---\nname: smart-search-cli\n---\n", encoding="utf-8")
-    result = skill_installer.install_skill_targets(
-        ["codex"],
-        project_root=tmp_path / "project",
-        source_root=source,
-    )
-
-    assert result["ok"] is True
-    assert result["installed_count"] == 1
-    assert (tmp_path / "project" / ".codex" / "skills" / "smart-search-cli" / "SKILL.md").is_file()
-
-
-def test_skill_installer_pi_target_uses_agent_skill_root(tmp_path):
-    source = tmp_path / "source"
-    source.mkdir()
-    (source / "SKILL.md").write_text("---\nname: smart-search-cli\n---\n", encoding="utf-8")
-
-    result = skill_installer.install_skill_targets(
-        ["pi"],
-        project_root=tmp_path / "project",
-        source_root=source,
-    )
-
-    assert result["ok"] is True
-    assert result["installed_count"] == 1
-    assert Path(result["installed"][0]["path"]).as_posix().endswith(".pi/agent/skills/smart-search-cli")
-    assert (tmp_path / "project" / ".pi" / "agent" / "skills" / "smart-search-cli" / "SKILL.md").is_file()
-    assert not (tmp_path / "project" / ".pi" / "skills" / "smart-search-cli").exists()
-
-
-def test_skill_installer_status_detects_stale_and_extra_files(tmp_path):
-    source = tmp_path / "source"
-    source.mkdir()
-    (source / "SKILL.md").write_text("new", encoding="utf-8")
-    root = tmp_path / "project"
-    dest = root / ".codex" / "skills" / "smart-search-cli"
-    dest.mkdir(parents=True)
-
-    (dest / "SKILL.md").write_text("old", encoding="utf-8")
-    stale = skill_installer.status_skill_targets(["codex"], project_root=root, source_root=source)
-    assert stale["targets"][0]["status"] == "stale"
-    assert stale["targets"][0]["stale_files"] == ["SKILL.md"]
-
-    (dest / "SKILL.md").write_text("new", encoding="utf-8")
-    (dest / "OLD.md").write_text("old leftover", encoding="utf-8")
-    extra = skill_installer.status_skill_targets(["codex"], project_root=root, source_root=source)
-    assert extra["targets"][0]["status"] == "extra_files"
-    assert extra["targets"][0]["extra_files"] == ["OLD.md"]
-    assert extra["targets"][0]["managed_hash_match"] is True
-    assert extra["targets"][0]["hash_match"] is False
 
 
 def test_tavily_url_normalization_cases():
@@ -1736,8 +1191,8 @@ def test_zhipu_prompt_allows_custom_search_engine(monkeypatch):
 
 def test_setup_guided_zh_groups_minimum_capabilities(monkeypatch, capsys):
     saved = {}
-    answers = iter(["xai", "", "context7", "tavily", "", "n", "n"])
-    secrets = iter(["xai-test-secret", "context7-test-secret", "tavily-test-secret"])
+    answers = iter(["openai", "https://relay.example.com/v1", "", "n", "context7", "tavily", "official", "skip", "n"])
+    secrets = iter(["relay-test-secret", "context7-test-secret", "tavily-test-secret"])
 
     def fake_config_set(key, value):
         saved[key] = value
@@ -1749,13 +1204,14 @@ def test_setup_guided_zh_groups_minimum_capabilities(monkeypatch, capsys):
     monkeypatch.setattr("builtins.input", lambda prompt: next(answers))
     monkeypatch.setattr(cli.getpass, "getpass", lambda prompt: next(secrets))
 
-    code = cli.main(["setup", "--skip-skills", "--lang", "zh"])
+    code = cli.main(["setup", "--lang", "zh"])
     captured = capsys.readouterr()
     data = json.loads(captured.out)
 
     assert code == cli.EXIT_OK
     assert saved == {
-        "XAI_API_KEY": "xai-test-secret",
+        "OPENAI_COMPATIBLE_API_URL": "https://relay.example.com/v1",
+        "OPENAI_COMPATIBLE_API_KEY": "relay-test-secret",
         "CONTEXT7_API_KEY": "context7-test-secret",
         "TAVILY_API_URL": "https://api.tavily.com",
         "TAVILY_API_KEY": "tavily-test-secret",
@@ -1769,8 +1225,8 @@ def test_setup_guided_zh_groups_minimum_capabilities(monkeypatch, capsys):
     assert "[1/3" in captured.err
     assert "main_search" in captured.err
     assert "pool.example.com" not in captured.out
-    assert "xai-test-secret" not in captured.err
-    assert "xai-test-secret" not in captured.out
+    assert "relay-test-secret" not in captured.err
+    assert "relay-test-secret" not in captured.out
 
 
 def test_setup_guided_zhipu_optional_reinforcement_saves_url_and_engine(monkeypatch, capsys):
@@ -1788,7 +1244,7 @@ def test_setup_guided_zhipu_optional_reinforcement_saves_url_and_engine(monkeypa
     monkeypatch.setattr("builtins.input", lambda prompt: next(answers))
     monkeypatch.setattr(cli.getpass, "getpass", lambda prompt: next(secrets))
 
-    code = cli.main(["setup", "--skip-skills", "--lang", "zh"])
+    code = cli.main(["setup", "--lang", "zh"])
     captured = capsys.readouterr()
 
     assert code == cli.EXIT_OK
@@ -1824,7 +1280,7 @@ def test_setup_guided_uses_tui_defaults_for_configured_providers(monkeypatch, ca
     monkeypatch.setattr("builtins.input", lambda prompt: "")
     monkeypatch.setattr(cli.getpass, "getpass", lambda prompt: "")
 
-    code = cli.main(["setup", "--skip-skills", "--lang", "en"])
+    code = cli.main(["setup", "--lang", "en"])
     captured = capsys.readouterr()
     data = json.loads(captured.out)
 
@@ -1854,7 +1310,7 @@ def test_setup_guided_en_reports_missing_minimum(monkeypatch, capsys):
     monkeypatch.setattr(cli.service, "config_list", lambda show_secrets=False: {"ok": True, "values": saved.copy()})
     monkeypatch.setattr("builtins.input", lambda prompt: next(answers))
 
-    code = cli.main(["setup", "--skip-skills", "--lang", "en"])
+    code = cli.main(["setup", "--lang", "en"])
     captured = capsys.readouterr()
     data = json.loads(captured.out)
 
@@ -1884,7 +1340,7 @@ def test_setup_guided_masks_configured_url_defaults(monkeypatch, capsys):
     monkeypatch.setattr("builtins.input", lambda prompt: next(answers))
     monkeypatch.setattr(cli.getpass, "getpass", lambda prompt: next(secrets))
 
-    code = cli.main(["setup", "--skip-skills", "--lang", "en"])
+    code = cli.main(["setup", "--lang", "en"])
     captured = capsys.readouterr()
 
     assert code == cli.EXIT_OK
@@ -1907,7 +1363,7 @@ def test_setup_guided_main_search_can_save_openai_compatible_peer(monkeypatch, c
     monkeypatch.setattr("builtins.input", lambda prompt: next(answers))
     monkeypatch.setattr(cli.getpass, "getpass", lambda prompt: next(secrets))
 
-    code = cli.main(["setup", "--skip-skills", "--lang", "en"])
+    code = cli.main(["setup", "--lang", "en"])
     captured = capsys.readouterr()
     data = json.loads(captured.out)
 
@@ -1922,34 +1378,6 @@ def test_setup_guided_main_search_can_save_openai_compatible_peer(monkeypatch, c
     assert "relay-test-secret" not in captured.err
 
 
-def test_setup_guided_main_search_can_save_both_peer_providers(monkeypatch, capsys):
-    saved = {}
-    answers = iter(["both", "", "https://relay.example.com/v1", "", "", "skip", "skip", "n", "n"])
-    secrets = iter(["xai-test-secret", "relay-test-secret"])
-
-    def fake_config_set(key, value):
-        saved[key] = value
-        return {"ok": True, "key": key, "value": "***", "config_file": "C:/tmp/config.json"}
-
-    monkeypatch.setattr(cli.service, "config_set", fake_config_set)
-    monkeypatch.setattr(cli.service, "config_path", lambda: {"ok": True, "config_file": "C:/tmp/config.json"})
-    monkeypatch.setattr(cli.service, "config_list", lambda show_secrets=False: {"ok": True, "values": saved.copy()})
-    monkeypatch.setattr("builtins.input", lambda prompt: next(answers))
-    monkeypatch.setattr(cli.getpass, "getpass", lambda prompt: next(secrets))
-
-    code = cli.main(["setup", "--skip-skills", "--lang", "en"])
-    data = json.loads(capsys.readouterr().out)
-
-    assert code == cli.EXIT_OK
-    assert saved == {
-        "XAI_API_KEY": "xai-test-secret",
-        "OPENAI_COMPATIBLE_API_URL": "https://relay.example.com/v1",
-        "OPENAI_COMPATIBLE_API_KEY": "relay-test-secret",
-    }
-    assert data["capability_status"]["main_search"]["configured"] == ["xai-responses", "openai-compatible"]
-    assert data["capability_status"]["main_search"]["fallback_chain"] == ["xai-responses", "openai-compatible"]
-
-
 def test_setup_interactive_language_prompt(monkeypatch, capsys):
     saved = {}
     answers = iter(["en", "skip", "skip", "skip", "n", "n"])
@@ -1959,7 +1387,7 @@ def test_setup_interactive_language_prompt(monkeypatch, capsys):
     monkeypatch.setattr(cli.service, "config_list", lambda show_secrets=False: {"ok": True, "values": saved.copy()})
     monkeypatch.setattr("builtins.input", lambda prompt: next(answers))
 
-    code = cli.main(["setup", "--skip-skills"])
+    code = cli.main(["setup"])
     captured = capsys.readouterr()
 
     assert code == cli.EXIT_OK
@@ -1991,112 +1419,7 @@ def test_search_passes_routing_options(monkeypatch, capsys):
     assert json.loads(capsys.readouterr().out)["content"] == "Answer"
 
 
-def test_smoke_command_uses_service(monkeypatch, capsys):
-    async def fake_smoke(mode="mock"):
-        return {"ok": True, "mode": mode, "failed_cases": [], "cases": []}
-
-    async def fake_research(*args, **kwargs):
-        return {"ok": True, "query_mode": "research", "content": "Research"}
-
-    monkeypatch.setattr(cli.service, "smoke", fake_smoke)
-
-    code = cli.main(["smoke", "--mode", "mock"])
-
-    assert code == cli.EXIT_OK
-    assert json.loads(capsys.readouterr().out)["mode"] == "mock"
-
-
-def test_anysearch_commands_use_service_wrappers(monkeypatch, capsys):
-    calls = []
-
-    async def fake_domains(domain=""):
-        calls.append(("domains", domain))
-        return {"ok": True, "provider": "anysearch", "tool": "list_domains", "results": []}
-
-    async def fake_search(query, domain="", sub_domain="", max_results=5):
-        calls.append(("search", query, domain, sub_domain, max_results))
-        return {"ok": True, "provider": "anysearch", "tool": "search", "query": query, "results": []}
-
-    async def fake_extract(url, max_length=20000):
-        calls.append(("extract", url, max_length))
-        return {"ok": True, "provider": "anysearch", "tool": "extract", "url": url, "content": "# Page"}
-
-    async def fake_batch(queries, max_results=3):
-        calls.append(("batch", queries, max_results))
-        return {"ok": True, "provider": "anysearch", "tool": "batch_search", "results": []}
-
-    monkeypatch.setattr(cli.service, "anysearch_domains", fake_domains)
-    monkeypatch.setattr(cli.service, "anysearch_search", fake_search)
-    monkeypatch.setattr(cli.service, "anysearch_extract", fake_extract)
-    monkeypatch.setattr(cli.service, "anysearch_batch", fake_batch)
-
-    assert cli.main(["anysearch-domains", "security"]) == cli.EXIT_OK
-    assert json.loads(capsys.readouterr().out)["tool"] == "list_domains"
-    assert cli.main(["as", "CVE-2024-3094", "--domain", "security.cve", "--sub-domain", "xz", "--max-results", "2"]) == cli.EXIT_OK
-    assert json.loads(capsys.readouterr().out)["query"] == "CVE-2024-3094"
-    assert cli.main(["as-extract", "https://example.com", "--max-length", "123"]) == cli.EXIT_OK
-    assert json.loads(capsys.readouterr().out)["url"] == "https://example.com"
-    assert cli.main(["as-batch", "a", "b", "--max-results", "1"]) == cli.EXIT_OK
-    assert json.loads(capsys.readouterr().out)["tool"] == "batch_search"
-
-    assert calls == [
-        ("domains", "security"),
-        ("search", "CVE-2024-3094", "security.cve", "xz", 2),
-        ("extract", "https://example.com", 123),
-        ("batch", ["a", "b"], 1),
-    ]
-
-
-def test_zhipu_mcp_commands_use_service_wrappers(monkeypatch, capsys):
-    calls = []
-
-    async def fake_search(query, count=5):
-        calls.append(("search", query, count))
-        return {"ok": True, "provider": "zhipu-mcp", "tool": "web_search_prime", "results": []}
-
-    async def fake_reader(url):
-        calls.append(("reader", url))
-        return {"ok": True, "provider": "zhipu-mcp-reader", "tool": "webReader", "content": "# Page"}
-
-    async def fake_search_doc(repo, query, max_results=5):
-        calls.append(("search_doc", repo, query, max_results))
-        return {"ok": True, "provider": "zhipu-mcp-zread", "tool": "search_doc", "results": []}
-
-    async def fake_repo_structure(repo, ref=""):
-        calls.append(("repo_structure", repo, ref))
-        return {"ok": True, "provider": "zhipu-mcp-zread", "tool": "get_repo_structure", "content": "tree"}
-
-    async def fake_read_file(repo, path, ref=""):
-        calls.append(("read_file", repo, path, ref))
-        return {"ok": True, "provider": "zhipu-mcp-zread", "tool": "read_file", "content": "file"}
-
-    monkeypatch.setattr(cli.service, "zhipu_mcp_search", fake_search)
-    monkeypatch.setattr(cli.service, "zhipu_mcp_reader", fake_reader)
-    monkeypatch.setattr(cli.service, "zhipu_mcp_search_doc", fake_search_doc)
-    monkeypatch.setattr(cli.service, "zhipu_mcp_repo_structure", fake_repo_structure)
-    monkeypatch.setattr(cli.service, "zhipu_mcp_read_file", fake_read_file)
-
-    assert cli.main(["zhipu-mcp-search", "news", "--count", "2"]) == cli.EXIT_OK
-    assert json.loads(capsys.readouterr().out)["tool"] == "web_search_prime"
-    assert cli.main(["zmcp-reader", "https://example.com"]) == cli.EXIT_OK
-    assert json.loads(capsys.readouterr().out)["tool"] == "webReader"
-    assert cli.main(["zmcp-doc", "owner/repo", "install", "--max-results", "3"]) == cli.EXIT_OK
-    assert json.loads(capsys.readouterr().out)["tool"] == "search_doc"
-    assert cli.main(["zmcp-tree", "owner/repo", "--ref", "main"]) == cli.EXIT_OK
-    assert json.loads(capsys.readouterr().out)["tool"] == "get_repo_structure"
-    assert cli.main(["zmcp-file", "owner/repo", "README.md", "--ref", "main"]) == cli.EXIT_OK
-    assert json.loads(capsys.readouterr().out)["tool"] == "read_file"
-
-    assert calls == [
-        ("search", "news", 2),
-        ("reader", "https://example.com"),
-        ("search_doc", "owner/repo", "install", 3),
-        ("repo_structure", "owner/repo", "main"),
-        ("read_file", "owner/repo", "README.md", "main"),
-    ]
-
-
-def test_provider_and_smoke_aliases_use_canonical_commands(monkeypatch, capsys):
+def test_provider_aliases_use_canonical_commands(monkeypatch, capsys):
     async def fake_exa_search(*args, **kwargs):
         return {"ok": True, "provider": "exa"}
 
@@ -2109,21 +1432,6 @@ def test_provider_and_smoke_aliases_use_canonical_commands(monkeypatch, capsys):
     async def fake_context7_docs(*args, **kwargs):
         return {"ok": True, "provider": "context7-docs"}
 
-    async def fake_anysearch_domains(*args, **kwargs):
-        return {"ok": True, "provider": "anysearch", "tool": "list_domains"}
-
-    async def fake_anysearch_search(*args, **kwargs):
-        return {"ok": True, "provider": "anysearch", "tool": "search"}
-
-    async def fake_anysearch_extract(*args, **kwargs):
-        return {"ok": True, "provider": "anysearch", "tool": "extract"}
-
-    async def fake_anysearch_batch(*args, **kwargs):
-        return {"ok": True, "provider": "anysearch", "tool": "batch_search"}
-
-    async def fake_smoke(mode="mock"):
-        return {"ok": True, "mode": mode, "failed_cases": [], "cases": []}
-
     async def fake_research(*args, **kwargs):
         return {"ok": True, "query_mode": "research", "content": "Research"}
 
@@ -2131,49 +1439,18 @@ def test_provider_and_smoke_aliases_use_canonical_commands(monkeypatch, capsys):
     monkeypatch.setattr(cli.service, "zhipu_search", fake_zhipu_search)
     monkeypatch.setattr(cli.service, "context7_library", fake_context7_library)
     monkeypatch.setattr(cli.service, "context7_docs", fake_context7_docs)
-    monkeypatch.setattr(cli.service, "anysearch_domains", fake_anysearch_domains)
-    monkeypatch.setattr(cli.service, "anysearch_search", fake_anysearch_search)
-    monkeypatch.setattr(cli.service, "anysearch_extract", fake_anysearch_extract)
-    monkeypatch.setattr(cli.service, "anysearch_batch", fake_anysearch_batch)
-    monkeypatch.setattr(cli.service, "smoke", fake_smoke)
     monkeypatch.setattr(cli.service, "research", fake_research)
 
     assert cli.main(["exa", "query"]) == cli.EXIT_OK
     assert json.loads(capsys.readouterr().out)["provider"] == "exa"
     assert cli.main(["z", "query"]) == cli.EXIT_OK
     assert json.loads(capsys.readouterr().out)["provider"] == "zhipu"
-    assert cli.main(["as-domains"]) == cli.EXIT_OK
-    assert json.loads(capsys.readouterr().out)["tool"] == "list_domains"
-    assert cli.main(["as-search", "query"]) == cli.EXIT_OK
-    assert json.loads(capsys.readouterr().out)["tool"] == "search"
-    assert cli.main(["as-extract", "https://example.com"]) == cli.EXIT_OK
-    assert json.loads(capsys.readouterr().out)["tool"] == "extract"
-    assert cli.main(["as-batch", "a", "b"]) == cli.EXIT_OK
-    assert json.loads(capsys.readouterr().out)["tool"] == "batch_search"
     assert cli.main(["c7", "react"]) == cli.EXIT_OK
     assert json.loads(capsys.readouterr().out)["provider"] == "context7-library"
     assert cli.main(["c7docs", "/facebook/react", "hooks"]) == cli.EXIT_OK
     assert json.loads(capsys.readouterr().out)["provider"] == "context7-docs"
     assert cli.main(["rs", "query"]) == cli.EXIT_OK
     assert json.loads(capsys.readouterr().out)["query_mode"] == "research"
-    assert cli.main(["sm"]) == cli.EXIT_OK
-    assert json.loads(capsys.readouterr().out)["mode"] == "mock"
-
-
-def test_smoke_command_accepts_mock_and_live_flags(monkeypatch, capsys):
-    captured = []
-
-    async def fake_smoke(mode="mock"):
-        captured.append(mode)
-        return {"ok": True, "mode": mode, "failed_cases": [], "cases": []}
-
-    monkeypatch.setattr(cli.service, "smoke", fake_smoke)
-
-    assert cli.main(["smoke", "--mock"]) == cli.EXIT_OK
-    assert json.loads(capsys.readouterr().out)["mode"] == "mock"
-    assert cli.main(["smoke", "--live"]) == cli.EXIT_OK
-    assert json.loads(capsys.readouterr().out)["mode"] == "live"
-    assert captured == ["mock", "live"]
 
 
 def test_setup_interactive_does_not_print_current_secret(monkeypatch, capsys):
@@ -2197,8 +1474,8 @@ def test_setup_interactive_does_not_print_current_secret(monkeypatch, capsys):
         lambda show_secrets=False: {
             "ok": True,
             "values": {
-                "XAI_API_KEY": "xai-test-secret",
-                "XAI_MODEL": "test-model",
+                "OPENAI_COMPATIBLE_API_KEY": "relay-test-secret",
+                "OPENAI_COMPATIBLE_MODEL": "relay-model",
                 "EXA_API_KEY": "exa-test-secret",
             },
         },
@@ -2212,11 +1489,11 @@ def test_setup_interactive_does_not_print_current_secret(monkeypatch, capsys):
     prompt_text = "\n".join(prompts)
 
     assert code == cli.EXIT_OK
-    assert "xai-test-secret" not in captured.out
-    assert "xai-test-secret" not in captured.err
-    assert "xai-test-secret" not in prompt_text
+    assert "relay-test-secret" not in captured.out
+    assert "relay-test-secret" not in captured.err
+    assert "relay-test-secret" not in prompt_text
     assert "exa-test-secret" not in prompt_text
-    assert "xAI API key optional [configured, press Enter to keep]" in prompt_text
+    assert "Exa API key optional [configured, press Enter to keep]" in prompt_text
 
 
 def test_setup_advanced_mode_keeps_low_level_prompts(monkeypatch, capsys):
@@ -2239,7 +1516,7 @@ def test_setup_advanced_mode_keeps_low_level_prompts(monkeypatch, capsys):
     monkeypatch.setattr(
         cli.service,
         "config_list",
-        lambda show_secrets=False: {"ok": True, "values": {"XAI_API_URL": "https://api.x.ai/v1"}},
+        lambda show_secrets=False: {"ok": True, "values": {"OPENAI_COMPATIBLE_API_URL": "https://relay.example.com/v1"}},
     )
     monkeypatch.setattr(cli.service, "config_set", fake_config_set)
     monkeypatch.setattr("builtins.input", fake_input)
@@ -2250,83 +1527,8 @@ def test_setup_advanced_mode_keeps_low_level_prompts(monkeypatch, capsys):
     assert code == cli.EXIT_OK
     captured = capsys.readouterr()
     assert "Legacy primary API URL optional" not in captured.err
-    assert "xAI Responses API URL optional" in captured.err
     assert "OpenAI-compatible API URL optional" in captured.err
     assert "Zhipu Web Search API URL optional" in captured.err
     assert "Zhipu search service" in captured.err
     assert "Advanced mode" in captured.err
 
-
-def test_regression_invokes_pytest(monkeypatch):
-    captured = {}
-
-    def fake_call(cmd, cwd):
-        captured["cmd"] = cmd
-        captured["cwd"] = cwd
-        return 0
-
-    monkeypatch.setattr(cli.subprocess, "call", fake_call)
-
-    code = cli.main(["regression"])
-
-    assert code == 0
-    assert "-m" in captured["cmd"]
-    assert "pytest" in captured["cmd"]
-    assert "tests/test_cli.py" in captured["cmd"]
-    assert "tests/test_smoke.py" in captured["cmd"]
-    assert "tests/test_release_workflow.py" in captured["cmd"]
-
-
-def test_regression_alias_invokes_pytest(monkeypatch):
-    captured = {}
-
-    def fake_call(cmd, cwd):
-        captured["cmd"] = cmd
-        captured["cwd"] = cwd
-        return 0
-
-    monkeypatch.setattr(cli.subprocess, "call", fake_call)
-
-    code = cli.main(["reg"])
-
-    assert code == 0
-    assert "pytest" in captured["cmd"]
-
-
-def test_regression_uses_mock_smoke_when_packaged_tests_missing(monkeypatch, capsys):
-    class MissingPath:
-        def __init__(self, value):
-            self.value = value
-
-        def __truediv__(self, other):
-            return MissingPath(f"{self.value}/{other}")
-
-        @property
-        def parents(self):
-            return [self, self, self]
-
-        def exists(self):
-            return False
-
-        def read_text(self, encoding="utf-8"):
-            return '{"version": "0.1.test"}'
-
-        def __str__(self):
-            return self.value
-
-    async def fake_smoke(mode="mock"):
-        return {"ok": True, "mode": mode, "failed_cases": [], "cases": []}
-
-    def should_not_call_pytest(cmd, cwd):
-        raise AssertionError("packaged regression fallback should not require pytest")
-
-    monkeypatch.setattr(cli.Path, "resolve", lambda self: MissingPath("pkg/src/smart_search/cli.py"))
-    monkeypatch.setattr(cli.subprocess, "call", should_not_call_pytest)
-    monkeypatch.setattr(cli.service, "smoke", fake_smoke)
-
-    code = cli.main(["regression"])
-
-    captured = capsys.readouterr()
-    assert code == cli.EXIT_OK
-    assert "Packaged install has no test files" in captured.err
-    assert json.loads(captured.out)["mode"] == "mock"
