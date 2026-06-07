@@ -196,6 +196,61 @@ smart-search fetch "https://example.com/source" --format json --output C:\tmp\sm
 smart-search search "Iran Hormuz latest military talks" --extra-sources 3 --timeout 90 --format json --output C:\tmp\smart-search-evidence\iran-hormuz-search.json
 ```
 
+## Workflows
+
+Use these recipes when the user asks for evidence, citations, repeated searches, or an archiveable research trail. Keep `--output` paths under one timestamped evidence directory so later answers can cite saved files and rerun commands.
+
+### Lightweight Evidence Gathering
+
+Use this when the user needs a source-backed answer but not full Deep Research.
+
+1. Create an evidence directory such as `C:\tmp\smart-search-evidence\YYYYMMDD-HHMM-topic\`.
+2. Discover candidate sources by intent:
+   - Broad or mixed intent: `smart-search search "query" --validation balanced --extra-sources 1 --format json --output C:\tmp\smart-search-evidence\YYYYMMDD-HHMM-topic\01-search.json`
+   - Chinese, domestic, or current intent: `smart-search zhipu-search "query" --count 5 --format json --output C:\tmp\smart-search-evidence\YYYYMMDD-HHMM-topic\01-zhipu.json`
+   - Docs/API/library/framework intent: `smart-search context7-library "library" "topic" --format json --output C:\tmp\smart-search-evidence\YYYYMMDD-HHMM-topic\01-context7-library.json`
+   - Official domains, papers, product pages, or trusted sites: `smart-search exa-search "query" --num-results 5 --include-text --include-highlights --format json --output C:\tmp\smart-search-evidence\YYYYMMDD-HHMM-topic\01-exa.json`
+3. Fetch the one or two URLs that support the answer: `smart-search fetch "https://example.com/source" --format markdown --output C:\tmp\smart-search-evidence\YYYYMMDD-HHMM-topic\02-fetch-source.md`.
+4. Write the final answer only from fetched page text or clearly label unfetched items as candidates.
+
+See `examples/evidence-gathering.md` for a complete command sequence.
+
+### Deep Research With Citations
+
+Use this when the user asks for deep research, cross-checking, serious comparison, or a multi-source investigation.
+
+1. Run the live executor: `smart-search research "question" --budget standard --format json --output C:\tmp\smart-search-evidence\YYYYMMDD-HHMM-topic\research.json`.
+2. Read `research_plan`, `evidence_items`, `gap_check`, `citations`, and `final_answer`.
+3. If `degraded` is true or `gap_check` lists open gaps, either fetch more sources or report the remaining gaps instead of filling them from memory.
+
+Keep the detailed Deep Research rules in `## Deep Research Mode`; this workflow is only the quick selection recipe.
+
+### Batch Search And Fetch
+
+Use this when the user gives multiple queries, companies, tools, documents, URLs, or comparison targets.
+
+1. Create one evidence directory for the batch.
+2. Run one CLI command per query or URL, using numbered outputs such as `01-search-react.json`, `02-search-vue.json`, or `03-fetch-docs.md`.
+3. Keep each command narrow:
+   - Use `search --extra-sources 1` for quick broad discovery.
+   - Use `zhipu-search` for Chinese/current/domestic items.
+   - Use `context7-library` / `context7-docs` for docs/API/library items.
+   - Use `exa-search` for official/trusted-domain discovery.
+   - Use `fetch` for each URL that will support a claim.
+4. After the loop, summarize across saved files. Cite fetched files or fetched URLs for claims; list unfetched discovery results only as candidates.
+
+See `examples/batch-search.md` for PowerShell loop patterns and output naming.
+
+### Evidence Archiving
+
+Use this when the user wants work that can be inspected, resumed, or audited.
+
+1. Save every non-trivial command with `--output`.
+2. Use stable numbered filenames: `01-search.json`, `02-exa-official.json`, `03-fetch-source.md`, `04-summary.json`.
+3. Keep command lines in the final answer or notes.
+4. Prefer JSON for machine-readable discovery and Markdown for fetched page text intended for reading.
+5. Do not treat `primary_sources` or `extra_sources` as claim proof until the relevant URL has been fetched.
+
 ## Local wrapper contract
 
 - Expect `smart-search` to resolve from the user's PATH.

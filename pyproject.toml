@@ -29,6 +29,7 @@ where = ["src"]
 smart_search = [
     "assets/skills/smart-search-cli/SKILL.md",
     "assets/skills/smart-search-cli/agents/*.yaml",
+    "assets/skills/smart-search-cli/examples/*.md",
     "assets/skills/smart-search-cli/references/*.md",
 ]
 

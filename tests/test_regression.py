@@ -232,12 +232,37 @@ def test_readme_language_split_and_provider_links_are_documented():
 def test_deep_research_shared_skill_files_are_synchronized():
     shared_files = [
         "SKILL.md",
+        "examples/batch-search.md",
+        "examples/evidence-gathering.md",
         "references/cli-contract.md",
     ]
     for relative in shared_files:
         assert (PUBLIC_SKILL_DIR / relative).read_text(encoding="utf-8") == (
             PACKAGED_SKILL_DIR / relative
         ).read_text(encoding="utf-8")
+
+
+def test_smart_search_skill_documents_personal_workflows_and_examples():
+    public_text = _read_skill_tree(PUBLIC_SKILL_DIR)
+    packaged_text = _read_skill_tree(PACKAGED_SKILL_DIR)
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    required_markers = [
+        "## Workflows",
+        "### Lightweight Evidence Gathering",
+        "### Deep Research With Citations",
+        "### Batch Search And Fetch",
+        "### Evidence Archiving",
+        "See `examples/evidence-gathering.md`",
+        "See `examples/batch-search.md`",
+        "# Evidence Gathering Workflow",
+        "# Batch Search Workflow",
+        "Use a PowerShell loop when several independent queries need the same source-discovery treatment.",
+        "Confirm every claim maps to a fetched file or fetched URL.",
+    ]
+    for marker in required_markers:
+        assert marker in public_text
+        assert marker in packaged_text
+    assert "assets/skills/smart-search-cli/examples/*.md" in pyproject
 
 
 def test_search_routing_contract_documents_strict_web_search_boundary():
