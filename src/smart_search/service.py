@@ -30,7 +30,7 @@ MINIMUM_PROFILE_ERROR = (
     "最低配置不满足：必须至少配置 main_search、docs_search、web_fetch 三类能力各一个 provider。"
 )
 OPENAI_COMPATIBLE_DIAGNOSE_COMMAND = "smart-search diagnose openai-compatible --format markdown"
-DOCS_INTENT_KEYWORDS = {
+DOCS_INTENT_ASCII_KEYWORDS = {
     "api",
     "sdk",
     "library",
@@ -38,6 +38,16 @@ DOCS_INTENT_KEYWORDS = {
     "docs",
     "documentation",
     "reference",
+    "guide",
+    "tutorial",
+    "quickstart",
+    "example",
+    "examples",
+    "usage",
+    "manual",
+    "changelog",
+    "release notes",
+    "migration",
     "react",
     "next.js",
     "vue",
@@ -46,6 +56,8 @@ DOCS_INTENT_KEYWORDS = {
     "langchain",
     "openai",
     "context7",
+}
+DOCS_INTENT_TEXT_KEYWORDS = {
     "接口",
     "文档",
     "库",
@@ -53,7 +65,16 @@ DOCS_INTENT_KEYWORDS = {
     "函数",
     "参数",
     "配置",
+    "教程",
+    "指南",
+    "示例",
+    "用法",
+    "快速开始",
+    "迁移",
+    "变更日志",
+    "版本说明",
 }
+DOCS_INTENT_KEYWORDS = DOCS_INTENT_ASCII_KEYWORDS | DOCS_INTENT_TEXT_KEYWORDS
 ZH_CURRENT_KEYWORDS = {
     "今天",
     "最新",
@@ -621,7 +642,13 @@ def _write_research_artifact(evidence_root: str, name: str, data: Any) -> None:
 
 def _is_docs_intent(query: str) -> bool:
     q = query.lower()
-    return any(keyword in q for keyword in DOCS_INTENT_KEYWORDS)
+    if any(keyword in q for keyword in DOCS_INTENT_TEXT_KEYWORDS):
+        return True
+    for keyword in DOCS_INTENT_ASCII_KEYWORDS:
+        pattern = re.escape(keyword).replace(r"\ ", r"\s+")
+        if re.search(rf"(?<![a-z0-9_]){pattern}(?![a-z0-9_])", q):
+            return True
+    return False
 
 
 def _is_zh_current_intent(query: str) -> bool:

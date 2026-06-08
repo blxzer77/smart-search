@@ -122,6 +122,35 @@ def test_config_sources_report_config_file(monkeypatch, tmp_path):
     assert sources["OPENAI_COMPATIBLE_API_URL"] == "default"
 
 
+@pytest.mark.parametrize(
+    "query",
+    [
+        "React useEffect API docs",
+        "OpenAI Responses API documentation",
+        "官方 API 文档",
+        "fastapi migration guide",
+        "next.js quickstart example",
+        "React 教程 示例",
+    ],
+)
+def test_docs_intent_matches_explicit_docs_queries(query):
+    assert service._is_docs_intent(query) is True
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "reaction speed",
+        "capistrano deploy",
+        "openair festival",
+        "react_native setup",
+        "openai_api wrapper",
+    ],
+)
+def test_docs_intent_uses_ascii_boundaries(query):
+    assert service._is_docs_intent(query) is False
+
+
 def test_deep_research_plan_current_market_is_offline_and_fetch_before_claim(monkeypatch):
     async def should_not_run_provider(*args, **kwargs):
         raise AssertionError("build_deep_research_plan must not call live providers")
