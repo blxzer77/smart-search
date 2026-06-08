@@ -1,3 +1,28 @@
+# AGENTS.md
+
+## Purpose
+
+This is the project-local instruction file for `D:\smartsearch-private`, a private deep-customization workspace derived from `konbakuyomu/smartsearch`.
+
+This is not a fork/PR contribution workspace. Optimize for the user's private workflow and long-term maintainability, while preserving upstream license obligations.
+
+## Language
+
+- User-facing replies must be in Simplified Chinese unless the user explicitly requests another language.
+- Tool prompts, search queries, command descriptions, model handoffs, and technical operating language should be in English when practical.
+- Preserve exact identifiers, paths, commands, config keys, package names, provider names, and citations when translation would reduce precision.
+
+## Project Boundaries
+
+- Preserve `LICENSE` and upstream copyright notices.
+- Do not push to upstream, publish npm packages, install dependencies, start services, or change credentials unless the user explicitly asks.
+- Treat provider keys and local configuration as secrets; never copy them into tracked files or replies.
+- Prefer small, reversible edits and validate with the smallest relevant tests or checks.
+- Read local evidence before editing: `README.md`, `README.zh-CN.md`, `package.json`, `pyproject.toml`, `src/`, `npm/`, `skills/`, `tests/`, `.trellis/workflow.md`, and relevant `.trellis/spec/` files.
+
+## SmartSearch Private Workspace
+
+The current repository may still have `origin` pointing at `https://github.com/konbakuyomu/smartsearch.git` until the user configures a private remote. Do not treat that remote as a push target.
 <!-- TRELLIS:START -->
 # Trellis Instructions
 
@@ -19,3 +44,4 @@ If you're using Codex or another agent-capable tool, additional project-scoped h
 Managed by Trellis. Edits outside this block are preserved; edits inside may be overwritten by a future `trellis update`.
 
 <!-- TRELLIS:END -->
+

@@ -14,7 +14,29 @@ logs/
 node_modules/
 *.tgz
 .agent/
-.agents/
 .claude/
-.codex/
-.trellis/
+
+# Project-local Trellis and Codex integration are tracked in this private fork.
+# Keep runtime/local identity ignored through .trellis/.gitignore and narrow root patterns.
+.agents/*
+!.agents/skills/
+!.agents/skills/**
+.codex/*
+!.codex/config.toml
+!.codex/hooks.json
+!.codex/hooks/
+!.codex/hooks/**
+!.codex/agents/
+!.codex/agents/**
+!.codex/skills/
+!.codex/skills/**
+.trellis/*
+!.trellis/.gitignore
+!.trellis/.template-hashes.json
+!.trellis/.version
+!.trellis/config.yaml
+!.trellis/workflow.md
+!.trellis/scripts/
+!.trellis/scripts/**
+!.trellis/spec/
+!.trellis/spec/**
