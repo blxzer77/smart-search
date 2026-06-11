@@ -72,17 +72,19 @@ def test_deep_research_skill_contract_public_and_packaged_assets_match():
         "Prefer Context7 before Exa",
         "decomposition",
         "usage_boundary",
-        "search`, `exa-search`, `exa-similar`, `zhipu-search`, `context7-library`, `context7-docs`, `fetch`, and `map`",
+        "search`, `exa-search`, `exa-similar`, `context7-library`, `context7-docs`, `fetch`, and `map`",
         "doctor` is preflight",
         "fixed topic recipe",
         "深度搜索一下最近的比特币行情",
-        "C:\\tmp\\smart-search-evidence",
-        "does not change default `smart-search search`",
+        "resolved_evidence_dir",
+        "SMART_SEARCH_EVIDENCE_DIR",
+        "bilingual search steps",
         "does not depend on an MCP session",
         "SMART_SEARCH_RESEARCH_PREFERRED_PROVIDERS",
         "provider advantage routing",
-        "`search --validation strict` does not automatically route `web_search`",
-        "`search` automatically routes `web_search` only for Chinese, domestic, or current intent",
+        "`search --validation strict` uses the same bilingual web_search policy as balanced mode",
+        "`search` runs bilingual web_search source discovery through Tavily / Firecrawl when configured",
+        "Zhipu is deprecated from default routing",
         "Docs/API/library routing stays explicit keyword intent-based",
     ]
     for marker in required_markers:
@@ -110,7 +112,7 @@ def test_deep_research_cli_contract_documents_plan_and_smoke_matrix():
         "`steps`: ordered CLI command steps",
         "`gap_check`: how the executor verifies",
         "`final_answer_policy`: how to cite fetched evidence",
-        "Allowed `tool` values are `search`, `exa-search`, `exa-similar`, `zhipu-search`, `context7-library`, `context7-docs`, `fetch`, and `map`",
+        "Allowed `tool` values are `search`, `exa-search`, `exa-similar`, `context7-library`, `context7-docs`, `fetch`, and `map`",
         "`doctor` is a `preflight` action, not a `steps[]` item",
         "must not require fixed topic recipe ids",
         "fixed topic recipe ids are not required schema",
@@ -119,6 +121,7 @@ def test_deep_research_cli_contract_documents_plan_and_smoke_matrix():
         "Budget limits must not break evidence policy",
         "Even `--budget quick` plans must retain at least one `fetch` step",
         "`steps[].command` and `steps[].output_path` are one contract",
+        "resolved_evidence_dir",
         "Prefer PowerShell-safe quoted commands",
     ]
     for marker in required_markers:
@@ -265,7 +268,7 @@ def test_smart_search_skill_documents_personal_workflows_and_examples():
     assert "assets/skills/smart-search-cli/examples/*.md" in pyproject
 
 
-def test_search_routing_contract_documents_strict_web_search_boundary():
+def test_search_routing_contract_documents_bilingual_web_search_policy():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     readme_zh = (ROOT / "README.zh-CN.md").read_text(encoding="utf-8")
     public_text = _read_skill_tree(PUBLIC_SKILL_DIR)
@@ -274,28 +277,33 @@ def test_search_routing_contract_documents_strict_web_search_boundary():
     packaged_contract = (PACKAGED_SKILL_DIR / "references" / "cli-contract.md").read_text(encoding="utf-8")
 
     english_markers = [
-        "`--validation strict` does not automatically route `web_search`",
-        "Strict evergreen queries without primary, docs, fetch, or explicit source evidence",
-        "source-first commands such as `zhipu-search` / `exa-search`",
+        "Default `balanced` and `strict` `search` run bilingual `web_search` source discovery through Tavily / Firecrawl when configured",
+        "`--validation fast` skips supplemental discovery",
+        "Strict queries without primary, docs, fetch, or explicit source evidence",
+        "source-first commands such as `exa-search`",
         "Docs supplemental routing stays keyword-based for explicit docs/API/library/framework intent",
+        "Zhipu is retained only as a deprecated manual compatibility command",
         "`extra_sources` are explicit discovery candidates from `--extra-sources N`, which defaults to `0`",
     ]
     for marker in english_markers:
         assert marker in readme
 
     zh_markers = [
-        "`--validation strict` 不再自动路由 `web_search`",
-        "strict 常青查询可能返回 `evidence_error`",
+        "`balanced` 和 `strict` 的 `search` 默认通过 Tavily / Firecrawl 执行中英双语 `web_search` 来源发现",
+        "`--validation fast` 跳过补强",
+        "strict 查询仍可能返回 `evidence_error`",
         "`--extra-sources N`",
         "docs 补强继续保持显式 docs/API/库/框架关键词触发",
+        "智谱只保留为 deprecated 手动兼容命令",
         "默认是 `0`",
     ]
     for marker in zh_markers:
         assert marker in readme_zh
 
     shipped_markers = [
-        "`search --validation strict` does not automatically route `web_search`",
-        "`search` automatically routes `web_search` only for Chinese, domestic, or current intent",
+        "`search --validation strict` uses the same bilingual web_search policy as balanced mode",
+        "`search` runs bilingual web_search source discovery through Tavily / Firecrawl when configured",
+        "Zhipu is deprecated from default routing",
         "explicit keyword-based docs/API/library/framework intent",
         "default `extra_sources` is `0`",
     ]
@@ -327,6 +335,8 @@ def test_zhipu_setup_contract_public_and_packaged_assets_match():
         "does not proxy Zhipu",
         "not Zhipu Chat Completions",
         "not the MCP Server",
+        "deprecated manual compatibility",
+        "not used by default routing",
     ]
     for marker in required_markers:
         assert marker in readme

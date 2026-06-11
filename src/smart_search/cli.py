@@ -344,6 +344,8 @@ def _format_doctor_markdown(data: dict[str, Any]) -> str:
         f"Minimum profile: {_status_label(data.get('minimum_profile_ok'))}",
         f"Log dir config value: `{data.get('log_dir_config_value', data.get('SMART_SEARCH_LOG_DIR', ''))}`",
         f"Resolved log dir: `{data.get('resolved_log_dir', '')}`",
+        f"Evidence dir config value: `{data.get('evidence_dir_config_value', data.get('SMART_SEARCH_EVIDENCE_DIR', ''))}`",
+        f"Resolved evidence dir: `{data.get('resolved_evidence_dir', '')}`",
         f"File logging enabled: {_yes_no(data.get('file_logging_enabled'))}",
     ]
     if data.get("legacy_windows_config_file"):
@@ -532,6 +534,10 @@ def _format_config_markdown(data: dict[str, Any]) -> str:
     if data.get("config_dir_override_value"):
         lines.append(f"SMART_SEARCH_CONFIG_DIR: `{data.get('config_dir_override_value')}`")
         lines.append(f"Override matches default: {_yes_no(data.get('config_dir_override_matches_default'))}")
+    if data.get("evidence_dir_config_value"):
+        lines.append(f"Evidence dir config value: `{data.get('evidence_dir_config_value')}`")
+    if data.get("resolved_evidence_dir"):
+        lines.append(f"Resolved evidence dir: `{data.get('resolved_evidence_dir')}`")
     if "exists" in data:
         lines.append(f"Exists: {_status_label(bool(data.get('exists')))}")
     if data.get("key"):
@@ -964,13 +970,13 @@ def _setup_status_from_values(values: dict[str, str]) -> dict[str, Any]:
             "configured": [
                 provider
                 for provider, configured in [
-                    ("zhipu", has("ZHIPU_API_KEY")),
                     ("tavily", has("TAVILY_API_KEY")),
                     ("firecrawl", has("FIRECRAWL_API_KEY")),
                 ]
                 if configured
             ],
-            "fallback_chain": ["zhipu", "tavily", "firecrawl"],
+            "fallback_chain": ["tavily", "firecrawl"],
+            "deprecated_configured": ["zhipu"] if has("ZHIPU_API_KEY") else [],
         },
         "docs_search": {
             "configured": [
@@ -1500,21 +1506,10 @@ def _prompt_optional_enhancements(values: dict[str, str], current: dict[str, str
     _write_stderr(
         _t(
             lang,
-            "\n[可选增强] web_search 网页补强\n用途: 中文、国内、时效、域名过滤类来源检索。\n推荐: 中文场景建议配置 Zhipu。\n",
-            "\n[Optional] web_search web reinforcement\nPurpose: Chinese, domestic, current, or domain-filtered source discovery.\nRecommended: configure Zhipu for Chinese/current scenarios.\n",
+            "\n[可选增强] web_search 网页补强\n用途: 通过 Tavily / Firecrawl 做中英双语来源检索。\n说明: Zhipu 已弃用为默认路径；保留旧命令仅用于手动兼容。\n",
+            "\n[Optional] web_search web reinforcement\nPurpose: bilingual Chinese/English source discovery through Tavily / Firecrawl.\nNote: Zhipu is deprecated from default routing; the legacy command remains for manual compatibility only.\n",
         )
     )
-    default_selected = ["zhipu"] if current.get("ZHIPU_API_KEY") else []
-    selected = _prompt_provider_multi_select(
-        _t(lang, "选择可选 web_search 增强", "Choose optional web_search reinforcement"),
-        ["zhipu"],
-        default_selected,
-        lang,
-    )
-    if "zhipu" in selected:
-        values["ZHIPU_API_KEY"] = _prompt_value("ZHIPU_API_KEY", "Zhipu API key", current.get("ZHIPU_API_KEY", ""), lang=lang)
-        _prompt_zhipu_api_url(values, current, lang)
-        _prompt_zhipu_search_engine(values, current, lang)
     if _prompt_yes_no(_t(lang, "是否调整验证/兜底默认值?", "Adjust validation/fallback defaults?"), default=False):
         values["SMART_SEARCH_VALIDATION_LEVEL"] = _prompt_value(
             "SMART_SEARCH_VALIDATION_LEVEL",
@@ -1557,12 +1552,12 @@ def _write_setup_examples(lang: str) -> None:
             "  main_search: OpenAI-compatible（示例: https://api.openai.com/v1）\n"
             "  docs_search: 文档/API 优先 Context7；官方域名、论文和低噪声发现再配 Exa。\n"
             "  web_fetch: Tavily 官方地址是 https://api.tavily.com；号池填 https://<host>/api/tavily。\n"
-            "  key 都填你自己控制台里的；Zhipu / Firecrawl 可以之后再补。\n",
+            "  key 都填你自己控制台里的；Firecrawl 可之后再补；Zhipu 只在显式 legacy 兼容时手动配置。\n",
             "\nIf unsure: first configure main_search + docs_search + web_fetch.\n"
             "  main_search: OpenAI-compatible (example: https://api.openai.com/v1)\n"
             "  docs_search: Context7 for docs/API first; add Exa for official domains, papers, and low-noise discovery.\n"
             "  web_fetch: official Tavily endpoint is https://api.tavily.com; pooled endpoints use https://<host>/api/tavily.\n"
-            "  Use keys from your own provider consoles. Zhipu / Firecrawl can be added later.\n",
+            "  Use keys from your own provider consoles. Firecrawl can be added later; configure Zhipu only for explicit legacy compatibility.\n",
         )
     )
 

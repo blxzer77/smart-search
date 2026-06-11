@@ -122,6 +122,26 @@ def test_config_sources_report_config_file(monkeypatch, tmp_path):
     assert sources["OPENAI_COMPATIBLE_API_URL"] == "default"
 
 
+def test_default_evidence_dir_uses_config_scoped_root(monkeypatch, tmp_path):
+    _reset_config(monkeypatch, tmp_path)
+    monkeypatch.setattr(service.time, "strftime", lambda _fmt: "20260611-1530")
+
+    result = service._default_evidence_dir("React docs?")
+
+    assert result == str(tmp_path / "evidence" / "20260611-1530-react-docs")
+
+
+def test_default_evidence_dir_honors_evidence_dir_override(monkeypatch, tmp_path):
+    _reset_config(monkeypatch, tmp_path)
+    evidence_root = tmp_path / "research-evidence"
+    monkeypatch.setenv("SMART_SEARCH_EVIDENCE_DIR", str(evidence_root))
+    monkeypatch.setattr(service.time, "strftime", lambda _fmt: "20260611-1531")
+
+    result = service._default_evidence_dir("深度搜索 Python")
+
+    assert result == str(evidence_root / "20260611-1531-深度搜索-python")
+
+
 @pytest.mark.parametrize(
     "query",
     [
@@ -162,7 +182,7 @@ def test_deep_research_plan_current_market_is_offline_and_fetch_before_claim(mon
 
     result = service.build_deep_research_plan(
         "深度搜索一下最近的比特币行情",
-        evidence_dir="C:/tmp/smart-search-evidence/test-market",
+        evidence_dir="C:/explicit-evidence/test-market",
     )
 
     assert result["ok"] is True
@@ -175,17 +195,20 @@ def test_deep_research_plan_current_market_is_offline_and_fetch_before_claim(mon
     assert result["preflight"]["executed_during_planning"] is False
     tools = {step["tool"] for step in result["steps"]}
     assert {"search", "fetch"} <= tools
-    assert "zhipu-search" in tools
+    assert "zhipu-search" not in tools
     assert "exa-search" not in tools
     assert tools <= service.DEEP_ALLOWED_TOOLS
     assert all(step["subquestion_id"] for step in result["steps"])
+    search_commands = [step["command"] for step in result["steps"] if step["tool"] == "search"]
+    assert any("search-zh" in command for command in search_commands)
+    assert any("search-en" in command for command in search_commands)
 
 
 def test_deep_research_plan_complex_docs_query_has_decomposition():
     result = service.build_deep_research_plan(
         "OpenAI Responses API web_search 和 Chat Completions 联网搜索怎么选",
         budget="deep",
-        evidence_dir="C:/tmp/smart-search-evidence/test-openai",
+        evidence_dir="C:/explicit-evidence/test-openai",
     )
 
     assert result["difficulty"] == "high"
@@ -201,7 +224,7 @@ def test_deep_research_plan_docs_official_domain_can_add_exa_after_context7():
     result = service.build_deep_research_plan(
         "React useEffect 官方 API docs",
         budget="deep",
-        evidence_dir="C:/tmp/smart-search-evidence/test-react-official",
+        evidence_dir="C:/explicit-evidence/test-react-official",
     )
 
     tools = [step["tool"] for step in result["steps"]]
@@ -213,7 +236,7 @@ def test_deep_research_plan_docs_official_domain_can_add_exa_after_context7():
 def test_deep_research_plan_url_first_starts_with_fetch():
     result = service.build_deep_research_plan(
         "https://example.com/source",
-        evidence_dir="C:/tmp/smart-search-evidence/test-url",
+        evidence_dir="C:/explicit-evidence/test-url",
     )
 
     assert result["intent_signals"]["known_url"] is True
@@ -226,7 +249,7 @@ def test_deep_research_plan_url_first_starts_with_fetch():
 def test_deep_research_claim_verification_does_not_unconditionally_add_exa():
     result = service.build_deep_research_plan(
         "帮我核验这个说法是真是假",
-        evidence_dir="C:/tmp/smart-search-evidence/test-claim",
+        evidence_dir="C:/explicit-evidence/test-claim",
     )
 
     tools = {step["tool"] for step in result["steps"]}
@@ -239,7 +262,7 @@ def test_deep_research_quick_budget_keeps_fetch_and_valid_subquestion_links():
     result = service.build_deep_research_plan(
         "OpenAI Responses API web_search 和 Chat Completions 联网搜索怎么选",
         budget="quick",
-        evidence_dir="C:/tmp/smart-search-evidence/test-quick",
+        evidence_dir="C:/explicit-evidence/test-quick",
     )
 
     subquestion_ids = {item["id"] for item in result["decomposition"]}
@@ -260,7 +283,7 @@ def _configure_research_minimum(monkeypatch):
 
 
 def _research_plan(query: str) -> dict:
-    return service.build_deep_research_plan(query, budget="deep", evidence_dir="C:/tmp/smart-search-evidence/test")
+    return service.build_deep_research_plan(query, budget="deep", evidence_dir="C:/explicit-evidence/test")
 
 
 def test_research_provider_profiles_are_registered_with_capability_boundaries():
@@ -284,14 +307,17 @@ def test_research_router_prefers_context7_for_docs(monkeypatch):
     assert routes["capabilities"]["docs_search"]["providers"][:2] == ["context7", "exa"]
 
 
-def test_research_router_uses_zhipu_for_chinese_current_policy(monkeypatch):
+def test_research_router_uses_bilingual_web_search_for_chinese_current_policy(monkeypatch):
     _configure_research_minimum(monkeypatch)
+    monkeypatch.setenv("FIRECRAWL_API_KEY", "firecrawl-secret")
     monkeypatch.setenv("ZHIPU_API_KEY", "zhipu-secret")
 
     routes = service._research_capability_routes("今天国内 AI 政策最新公告", _research_plan("今天国内 AI 政策最新公告"), "auto")
 
     assert routes["signals"]["current_or_locale_intent"] is True
-    assert routes["capabilities"]["web_search"]["providers"][0] == "zhipu"
+    assert routes["capabilities"]["web_search"]["providers"] == ["tavily", "firecrawl"]
+    assert "zhipu" not in routes["capabilities"]["web_search"]["providers"]
+    assert "bilingual" in routes["capabilities"]["web_search"]["reason"]
 
 
 def test_research_router_favors_jina_for_known_url_pdf_and_firecrawl_for_dynamic(monkeypatch):
@@ -332,12 +358,11 @@ def test_research_fallback_detection_is_same_capability_only():
 @pytest.mark.asyncio
 async def test_research_executes_staged_evidence_only_workflow(monkeypatch, tmp_path):
     _configure_research_minimum(monkeypatch)
-    monkeypatch.setenv("ZHIPU_API_KEY", "zhipu-secret")
 
     async def fake_web_search(query, count=5, providers="auto", fallback="auto"):
         return (
-            [{"url": "https://evidence.example.com/source", "title": "Source", "provider": "zhipu"}],
-            [service._attempt("web_search", "zhipu", "ok", time.time(), result_count=1)],
+            [{"url": "https://evidence.example.com/source", "title": "Source", "provider": "tavily"}],
+            [service._attempt("web_search", "tavily", "ok", time.time(), result_count=1)],
         )
 
     async def fake_fetch(url, fallback="auto", preferred_order=None):
@@ -357,19 +382,19 @@ async def test_research_executes_staged_evidence_only_workflow(monkeypatch, tmp_
     assert result["evidence_items"][0]["url"] == "https://evidence.example.com/source"
     assert result["citations"] == [{"url": "https://evidence.example.com/source", "title": "Source", "provider": "jina"}]
     assert "Fetched body only" in result["final_answer"]
-    assert "zhipu" in [attempt["provider"] for attempt in result["provider_attempts"]]
+    assert "tavily" in [attempt["provider"] for attempt in result["provider_attempts"]]
+    assert "zhipu" not in [attempt["provider"] for attempt in result["provider_attempts"]]
     assert (tmp_path / "summary.json").exists()
 
 
 @pytest.mark.asyncio
 async def test_research_reports_degraded_gaps_without_citing_discovery_candidates(monkeypatch, tmp_path):
     _configure_research_minimum(monkeypatch)
-    monkeypatch.setenv("ZHIPU_API_KEY", "zhipu-secret")
 
     async def fake_web_search(query, count=5, providers="auto", fallback="auto"):
         return (
-            [{"url": "https://candidate.example.com", "title": "Candidate", "provider": "zhipu"}],
-            [service._attempt("web_search", "zhipu", "ok", time.time(), result_count=1)],
+            [{"url": "https://candidate.example.com", "title": "Candidate", "provider": "tavily"}],
+            [service._attempt("web_search", "tavily", "ok", time.time(), result_count=1)],
         )
 
     async def fake_fetch(url, fallback="auto", preferred_order=None):
@@ -420,7 +445,6 @@ async def test_research_fallback_off_limits_same_capability_fetch(monkeypatch, t
 @pytest.mark.asyncio
 async def test_research_fallback_off_does_not_run_supplemental_exa(monkeypatch, tmp_path):
     _configure_research_minimum(monkeypatch)
-    monkeypatch.setenv("ZHIPU_API_KEY", "zhipu-secret")
 
     async def fake_context7_library(*args, **kwargs):
         return {"ok": False, "error_type": "", "error": "", "results": []}
@@ -430,8 +454,8 @@ async def test_research_fallback_off_does_not_run_supplemental_exa(monkeypatch, 
 
     async def fake_web_search(query, count=5, providers="auto", fallback="auto"):
         return (
-            [{"url": "https://official.example.com/source", "title": "Official", "provider": "zhipu"}],
-            [service._attempt("web_search", "zhipu", "ok", time.time(), result_count=1)],
+            [{"url": "https://official.example.com/source", "title": "Official", "provider": "tavily"}],
+            [service._attempt("web_search", "tavily", "ok", time.time(), result_count=1)],
         )
 
     async def fake_fetch(url, fallback="auto", preferred_order=None):
@@ -674,7 +698,7 @@ async def test_balanced_current_sports_queries_use_web_search_reinforcement(monk
 
 
 @pytest.mark.asyncio
-async def test_chinese_language_request_does_not_trigger_current_web_search(monkeypatch):
+async def test_chinese_language_request_runs_bilingual_web_search(monkeypatch):
     monkeypatch.setenv("OPENAI_COMPATIBLE_API_URL", "https://relay.example.com/v1")
     monkeypatch.setenv("OPENAI_COMPATIBLE_API_KEY", "relay-test-secret")
     monkeypatch.setenv("EXA_API_KEY", "exa-test-secret")
@@ -683,22 +707,34 @@ async def test_chinese_language_request_does_not_trigger_current_web_search(monk
     async def fake_search(self, query, platform="", ctx=None):
         return "Language answer."
 
-    async def should_not_run_web_search(query, count=5, providers="auto", fallback="auto"):
-        raise AssertionError("generic Chinese-language requests should not trigger current web_search")
+    web_queries = []
+
+    async def fake_web_search(query, count=5, providers="auto", fallback="auto"):
+        web_queries.append(query)
+        locale = "zh" if query.startswith("中文搜索") else "en"
+        return (
+            [{"url": f"https://{locale}.example.com/source", "title": locale, "provider": "tavily"}],
+            [service._attempt("web_search", "tavily", "ok", time.time(), result_count=1)],
+        )
 
     monkeypatch.setattr(service.OpenAICompatibleSearchProvider, "search", fake_search)
-    monkeypatch.setattr(service, "_run_web_search_fallback", should_not_run_web_search)
+    monkeypatch.setattr(service, "_run_web_search_fallback", fake_web_search)
 
     result = await service.search("中文解释 Python 函数", validation="balanced")
 
     assert result["ok"] is True
     assert result["routing_decision"]["web_current_intent"] is False
-    assert "web_search" not in result["routing_decision"]["supplemental_paths"]
-    assert all(attempt["capability"] != "web_search" for attempt in result["provider_attempts"])
+    assert result["routing_decision"]["bilingual_web_search"] is True
+    assert result["routing_decision"]["bilingual_query_locales"] == ["zh", "en"]
+    assert "web_search" in result["routing_decision"]["supplemental_paths"]
+    assert len(web_queries) == 2
+    assert web_queries[0].startswith("中文搜索")
+    assert web_queries[1].startswith("Search English-language sources")
+    assert any(attempt["capability"] == "web_search" for attempt in result["provider_attempts"])
 
 
 @pytest.mark.asyncio
-async def test_docs_query_routes_docs_without_current_web_search(monkeypatch):
+async def test_docs_query_routes_docs_and_bilingual_web_search(monkeypatch):
     monkeypatch.setenv("OPENAI_COMPATIBLE_API_URL", "https://relay.example.com/v1")
     monkeypatch.setenv("OPENAI_COMPATIBLE_API_KEY", "relay-test-secret")
     monkeypatch.setenv("EXA_API_KEY", "exa-test-secret")
@@ -712,25 +748,33 @@ async def test_docs_query_routes_docs_without_current_web_search(monkeypatch):
             {"capability": "docs_search", "provider": "context7", "status": "ok", "elapsed_ms": 1, "result_count": 1}
         ]
 
-    async def should_not_run_web_search(query, count=5, providers="auto", fallback="auto"):
-        raise AssertionError("docs query should not trigger current web_search")
+    web_queries = []
+
+    async def fake_web_search(query, count=5, providers="auto", fallback="auto"):
+        web_queries.append(query)
+        locale = "zh" if query.startswith("中文搜索") else "en"
+        return (
+            [{"url": f"https://{locale}.docs.example.com/source", "title": locale, "provider": "tavily"}],
+            [service._attempt("web_search", "tavily", "ok", time.time(), result_count=1)],
+        )
 
     monkeypatch.setattr(service.OpenAICompatibleSearchProvider, "search", fake_search)
     monkeypatch.setattr(service, "_run_docs_search_fallback", fake_docs_search)
-    monkeypatch.setattr(service, "_run_web_search_fallback", should_not_run_web_search)
+    monkeypatch.setattr(service, "_run_web_search_fallback", fake_web_search)
 
     result = await service.search("React useEffect API docs 中文解释", validation="balanced")
 
     assert result["ok"] is True
     assert result["routing_decision"]["docs_intent"] is True
     assert result["routing_decision"]["web_current_intent"] is False
-    assert result["routing_decision"]["supplemental_paths"] == ["docs_search"]
+    assert result["routing_decision"]["supplemental_paths"] == ["docs_search", "web_search"]
+    assert len(web_queries) == 2
     assert any(attempt["capability"] == "docs_search" for attempt in result["provider_attempts"])
-    assert all(attempt["capability"] != "web_search" for attempt in result["provider_attempts"])
+    assert any(attempt["capability"] == "web_search" for attempt in result["provider_attempts"])
 
 
 @pytest.mark.asyncio
-async def test_strict_evergreen_query_does_not_auto_use_web_search(monkeypatch):
+async def test_strict_evergreen_query_uses_bilingual_web_search(monkeypatch):
     monkeypatch.setenv("OPENAI_COMPATIBLE_API_URL", "https://relay.example.com/v1")
     monkeypatch.setenv("OPENAI_COMPATIBLE_API_KEY", "relay-test-secret")
     monkeypatch.setenv("EXA_API_KEY", "exa-test-secret")
@@ -739,19 +783,28 @@ async def test_strict_evergreen_query_does_not_auto_use_web_search(monkeypatch):
     async def fake_search(self, query, platform="", ctx=None):
         return "Strict answer."
 
-    async def should_not_run_web_search(query, count=5, providers="auto", fallback="auto"):
-        raise AssertionError("strict evergreen queries should not trigger current web_search")
+    web_queries = []
+
+    async def fake_web_search(query, count=5, providers="auto", fallback="auto"):
+        web_queries.append(query)
+        locale = "zh" if query.startswith("中文搜索") else "en"
+        return (
+            [{"url": f"https://{locale}.strict.example.com/source", "title": locale, "provider": "tavily"}],
+            [service._attempt("web_search", "tavily", "ok", time.time(), result_count=1)],
+        )
 
     monkeypatch.setattr(service.OpenAICompatibleSearchProvider, "search", fake_search)
-    monkeypatch.setattr(service, "_run_web_search_fallback", should_not_run_web_search)
+    monkeypatch.setattr(service, "_run_web_search_fallback", fake_web_search)
 
     result = await service.search("plain evergreen query", validation="strict")
 
-    assert result["ok"] is False
-    assert result["error_type"] == "evidence_error"
+    assert result["ok"] is True
+    assert result["error_type"] == ""
     assert result["routing_decision"]["web_current_intent"] is False
-    assert "web_search" not in result["routing_decision"]["supplemental_paths"]
-    assert all(attempt["capability"] != "web_search" for attempt in result["provider_attempts"])
+    assert result["routing_decision"]["bilingual_web_search"] is True
+    assert "web_search" in result["routing_decision"]["supplemental_paths"]
+    assert len(web_queries) == 2
+    assert any(attempt["capability"] == "web_search" for attempt in result["provider_attempts"])
 
 
 @pytest.mark.asyncio

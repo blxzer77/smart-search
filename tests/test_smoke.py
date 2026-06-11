@@ -49,13 +49,18 @@ async def test_search_docs_intent_uses_docs_fallback(monkeypatch):
     async def fake_context7(name, query=""):
         return {"ok": True, "results": [{"id": "/facebook/react", "title": "React", "description": "UI"}], "total": 1}
 
+    async def fake_bilingual_web_search(query, count=5, providers="auto", fallback="auto"):
+        return [], []
+
     monkeypatch.setattr(service.OpenAICompatibleSearchProvider, "search", fake_search)
     monkeypatch.setattr(service, "context7_library", fake_context7)
+    monkeypatch.setattr(service, "_run_bilingual_web_search", fake_bilingual_web_search)
 
     result = await service.search("React useEffect API docs", validation="balanced")
 
     assert result["ok"] is True
     assert result["routing_decision"]["docs_intent"] is True
+    assert "web_search" in result["routing_decision"]["supplemental_paths"]
     assert result["fallback_used"] is False
     assert "context7" in result["providers_used"]
     assert "exa" not in result["providers_used"]
@@ -78,9 +83,13 @@ async def test_search_docs_intent_falls_back_to_exa_after_context7_empty(monkeyp
     async def fake_exa(*args, **kwargs):
         return {"ok": True, "results": [{"url": "https://docs.example.com", "title": "Docs"}]}
 
+    async def fake_bilingual_web_search(query, count=5, providers="auto", fallback="auto"):
+        return [], []
+
     monkeypatch.setattr(service.OpenAICompatibleSearchProvider, "search", fake_search)
     monkeypatch.setattr(service, "context7_library", fake_context7)
     monkeypatch.setattr(service, "exa_search", fake_exa)
+    monkeypatch.setattr(service, "_run_bilingual_web_search", fake_bilingual_web_search)
 
     result = await service.search("React useEffect API docs", validation="balanced")
 
@@ -92,7 +101,7 @@ async def test_search_docs_intent_falls_back_to_exa_after_context7_empty(monkeyp
 
 
 @pytest.mark.asyncio
-async def test_search_zh_current_uses_zhipu_reinforcement(monkeypatch):
+async def test_search_zh_current_uses_bilingual_tavily_reinforcement(monkeypatch):
     monkeypatch.setenv("OPENAI_COMPATIBLE_API_URL", "https://api.example.com/v1")
     monkeypatch.setenv("OPENAI_COMPATIBLE_API_KEY", "sk-test-secret")
     monkeypatch.setenv("EXA_API_KEY", "exa-secret")
@@ -102,18 +111,28 @@ async def test_search_zh_current_uses_zhipu_reinforcement(monkeypatch):
     async def fake_search(self, query, platform="", ctx=None):
         return "Answer."
 
-    async def fake_zhipu(query, count=10, **kwargs):
-        return {
-            "ok": True,
-            "results": [{"url": "https://example.com/news", "title": "News", "provider": "zhipu"}],
-            "total": 1,
-        }
+    web_queries = []
+
+    async def fake_web_search(query, count=5, providers="auto", fallback="auto"):
+        web_queries.append(query)
+        locale = "zh" if query.startswith("中文搜索") else "en"
+        return (
+            [{"url": f"https://{locale}.example.com/news", "title": "News", "provider": "tavily"}],
+            [service._attempt("web_search", "tavily", "ok", 0, result_count=1)],
+        )
+
+    async def fail_zhipu(*args, **kwargs):
+        raise AssertionError("zhipu-search must not be used by default routing")
 
     monkeypatch.setattr(service.OpenAICompatibleSearchProvider, "search", fake_search)
-    monkeypatch.setattr(service, "zhipu_search", fake_zhipu)
+    monkeypatch.setattr(service, "_run_web_search_fallback", fake_web_search)
+    monkeypatch.setattr(service, "zhipu_search", fail_zhipu)
 
     result = await service.search("今天国内 AI 新闻", validation="balanced")
 
     assert result["ok"] is True
     assert result["routing_decision"]["zh_current_intent"] is True
-    assert "zhipu" in result["providers_used"]
+    assert result["routing_decision"]["bilingual_query_locales"] == ["zh", "en"]
+    assert len(web_queries) == 2
+    assert "tavily" in result["providers_used"]
+    assert "zhipu" not in result["providers_used"]

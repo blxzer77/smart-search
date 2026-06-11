@@ -302,13 +302,17 @@ def test_doctor_markdown_outputs_human_health_report(monkeypatch, capsys):
             "config_dir_override_matches_default": True,
             "log_dir_config_value": "logs",
             "resolved_log_dir": "C:/tmp/logs",
+            "evidence_dir_config_value": "evidence",
+            "resolved_evidence_dir": "C:/tmp/evidence",
             "file_logging_enabled": False,
             "config_status": "ok: complete",
             "OPENAI_COMPATIBLE_API_KEY": "未配置",
             "SMART_SEARCH_LOG_DIR": "logs",
+            "SMART_SEARCH_EVIDENCE_DIR": "evidence",
             "config_sources": {
                 "OPENAI_COMPATIBLE_API_KEY": "default",
                 "SMART_SEARCH_LOG_DIR": "default",
+                "SMART_SEARCH_EVIDENCE_DIR": "default",
             },
             "minimum_profile_ok": True,
             "minimum_profile_missing": [],
@@ -353,6 +357,8 @@ def test_doctor_markdown_outputs_human_health_report(monkeypatch, capsys):
     assert "override matches the current Windows default path" in out
     assert "Log dir config value: `logs`" in out
     assert "Resolved log dir: `C:/tmp/logs`" in out
+    assert "Evidence dir config value: `evidence`" in out
+    assert "Resolved evidence dir: `C:/tmp/evidence`" in out
     assert "File logging enabled: NO" in out
     assert "## Configuration Values" in out
     assert "| OPENAI_COMPATIBLE_API_KEY | default | 未配置 |" in out
@@ -792,6 +798,8 @@ def test_config_markdown_and_content_are_masked_and_non_json(monkeypatch, capsys
             "legacy_windows_config_exists": False,
             "config_dir_override_value": "C:/tmp",
             "config_dir_override_matches_default": False,
+            "evidence_dir_config_value": "evidence",
+            "resolved_evidence_dir": "C:/tmp/evidence",
             "exists": True,
         }
 
@@ -815,6 +823,8 @@ def test_config_markdown_and_content_are_masked_and_non_json(monkeypatch, capsys
     assert "C:/tmp/config.json" in path_out
     assert "Config dir source: `environment`" in path_out
     assert "SMART_SEARCH_CONFIG_DIR: `C:/tmp`" in path_out
+    assert "Evidence dir config value: `evidence`" in path_out
+    assert "Resolved evidence dir: `C:/tmp/evidence`" in path_out
 
     assert cli.main(["config", "list", "--format", "markdown"]) == cli.EXIT_OK
     list_out = capsys.readouterr().out
@@ -1229,31 +1239,32 @@ def test_setup_guided_zh_groups_minimum_capabilities(monkeypatch, capsys):
     assert "relay-test-secret" not in captured.out
 
 
-def test_setup_guided_zhipu_optional_reinforcement_saves_url_and_engine(monkeypatch, capsys):
+def test_setup_guided_does_not_prompt_zhipu_by_default(monkeypatch, capsys):
     saved = {}
-    answers = iter(["skip", "skip", "skip", "zhipu", "official", "search_pro_quark", "n"])
-    secrets = iter(["zhipu-test-secret"])
+    answers = iter(["skip", "skip", "skip", "n"])
 
     def fake_config_set(key, value):
         saved[key] = value
         return {"ok": True, "key": key, "value": "***", "config_file": "C:/tmp/config.json"}
 
+    def fail_getpass(prompt):
+        raise AssertionError("guided setup must not prompt for Zhipu by default")
+
     monkeypatch.setattr(cli.service, "config_set", fake_config_set)
     monkeypatch.setattr(cli.service, "config_path", lambda: {"ok": True, "config_file": "C:/tmp/config.json"})
     monkeypatch.setattr(cli.service, "config_list", lambda show_secrets=False: {"ok": True, "values": saved.copy()})
     monkeypatch.setattr("builtins.input", lambda prompt: next(answers))
-    monkeypatch.setattr(cli.getpass, "getpass", lambda prompt: next(secrets))
+    monkeypatch.setattr(cli.getpass, "getpass", fail_getpass)
 
     code = cli.main(["setup", "--lang", "zh"])
     captured = capsys.readouterr()
 
     assert code == cli.EXIT_OK
-    assert saved["ZHIPU_API_KEY"] == "zhipu-test-secret"
-    assert saved["ZHIPU_API_URL"] == "https://open.bigmodel.cn/api"
-    assert saved["ZHIPU_SEARCH_ENGINE"] == "search_pro_quark"
-    assert "智谱搜索服务" in captured.err
-    assert "zhipu-test-secret" not in captured.out
-    assert "zhipu-test-secret" not in captured.err
+    assert "ZHIPU_API_KEY" not in saved
+    assert "ZHIPU_API_URL" not in saved
+    assert "ZHIPU_SEARCH_ENGINE" not in saved
+    assert "Zhipu 已弃用为默认路径" in captured.err
+    assert "智谱搜索服务" not in captured.err
 
 
 def test_setup_guided_uses_tui_defaults_for_configured_providers(monkeypatch, capsys):

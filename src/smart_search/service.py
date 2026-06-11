@@ -101,7 +101,6 @@ DEEP_ALLOWED_TOOLS = {
     "search",
     "exa-search",
     "exa-similar",
-    "zhipu-search",
     "context7-library",
     "context7-docs",
     "fetch",
@@ -176,7 +175,7 @@ DEEP_EXA_DISCOVERY_KEYWORDS = {
     "standard",
     "standards",
 }
-RESEARCH_ROUTE_POLICY_VERSION = "research-router-v1"
+RESEARCH_ROUTE_POLICY_VERSION = "research-router-v2-bilingual-no-zhipu"
 RESEARCH_JS_HEAVY_KEYWORDS = {
     "js-heavy",
     "javascript",
@@ -192,7 +191,7 @@ RESEARCH_JS_HEAVY_KEYWORDS = {
 RESEARCH_PDF_KEYWORDS = {"pdf", "arxiv", "论文", "paper", ".pdf"}
 RESEARCH_PROFILE_ORDER = {
     "main_search": ["openai-compatible"],
-    "web_search": ["zhipu", "tavily", "firecrawl"],
+    "web_search": ["tavily", "firecrawl"],
     "docs_search": ["context7", "exa"],
     "web_fetch": ["tavily", "jina", "firecrawl"],
     "site_map": ["tavily"],
@@ -228,12 +227,13 @@ PROVIDER_PROFILES: dict[str, dict[str, Any]] = {
     },
     "zhipu": {
         "capability": "web_search",
-        "strengths": ["Chinese", "domestic China", "current", "policy", "announcements", "recency filters"],
+        "deprecated": True,
+        "strengths": ["legacy Chinese/current web-search command compatibility"],
         "exclusions": ["web_fetch", "chat model selection"],
         "fallback_group": "web_search",
         "minimum_profile_role": "",
         "quality_filters": ["URL required", "fetch before proof citation"],
-        "route_reasons": ["Chinese/current/policy discovery"],
+        "route_reasons": ["deprecated; not used by default routing"],
     },
     "tavily": {
         "capability": "web_search",
@@ -445,6 +445,22 @@ def _configured_for_capability(capability: str, capability_status: dict[str, Any
     return [provider for provider in RESEARCH_PROFILE_ORDER.get(capability, []) if _provider_configured(provider)]
 
 
+def _bilingual_search_queries(query: str) -> list[dict[str, str]]:
+    question = query.strip()
+    return [
+        {
+            "locale": "zh",
+            "label": "Chinese-language sources",
+            "query": f"中文搜索，优先检索中文来源，并回答原问题：{question}",
+        },
+        {
+            "locale": "en",
+            "label": "English-language sources",
+            "query": f"Search English-language sources and answer the original question: {question}",
+        },
+    ]
+
+
 def _safe_provider_overrides() -> tuple[list[str], list[str], list[str]]:
     known = set(PROVIDER_PROFILES)
     preferred = [provider for provider in config.research_preferred_providers if provider in known]
@@ -524,13 +540,14 @@ def _research_capability_routes(
     }
 
     web_search = _configured_for_capability("web_search", capability_status)
-    if signals["current_or_locale_intent"]:
-        ordered = [provider for provider in ["zhipu", "tavily", "firecrawl"] if provider in web_search]
-    else:
-        ordered = [provider for provider in ["tavily", "firecrawl", "zhipu"] if provider in web_search]
+    ordered = [provider for provider in ["tavily", "firecrawl"] if provider in web_search]
     routes["capabilities"]["web_search"] = {
         "providers": _apply_research_overrides("web_search", ordered),
-        "reason": "current/locale evidence" if signals["current_or_locale_intent"] else "broad source discovery",
+        "reason": (
+            "bilingual current/locale evidence"
+            if signals["current_or_locale_intent"]
+            else "bilingual broad source discovery"
+        ),
     }
 
     docs = _configured_for_capability("docs_search", capability_status)
@@ -684,7 +701,7 @@ def _slugify_query(query: str) -> str:
 
 def _default_evidence_dir(query: str) -> str:
     timestamp = time.strftime("%Y%m%d-%H%M")
-    return str(Path("C:/tmp/smart-search-evidence") / f"{timestamp}-{_slugify_query(query)}")
+    return str(config.evidence_dir / f"{timestamp}-{_slugify_query(query)}")
 
 
 def _quote_arg(value: str) -> str:
@@ -785,17 +802,26 @@ def build_deep_research_plan(query: str, budget: str = "standard", evidence_dir:
     def next_filename(suffix: str) -> str:
         return f"{len(steps) + 1:02d}-{suffix}"
 
-    def command_search(q: str, extra_sources: int = 2) -> str:
-        return f"smart-search search {_quote_arg(q)} --validation balanced --extra-sources {extra_sources} --format json --output {_quote_arg(_path_join(evidence_root, next_filename('search.json')))}"
+    def command_search(q: str, extra_sources: int = 2, filename: str = "") -> str:
+        output_name = filename or next_filename("search.json")
+        return f"smart-search search {_quote_arg(q)} --validation balanced --extra-sources {extra_sources} --format json --output {_quote_arg(_path_join(evidence_root, output_name))}"
 
     def command_exa(q: str) -> str:
         return f"smart-search exa-search {_quote_arg(q)} --num-results 5 --format json --output {_quote_arg(_path_join(evidence_root, next_filename('exa.json')))}"
 
-    def command_zhipu(q: str) -> str:
-        return f"smart-search zhipu-search {_quote_arg(q)} --count 5 --format json --output {_quote_arg(_path_join(evidence_root, next_filename('zhipu.json')))}"
-
     def command_fetch(target: str = "<key-url>") -> str:
         return f"smart-search fetch {_quote_arg(target)} --format markdown --output {_quote_arg(_path_join(evidence_root, next_filename('fetch.md')))}"
+
+    def add_bilingual_search_steps(sub_id: str, purpose: str, extra_sources: int) -> None:
+        for variant in _bilingual_search_queries(question):
+            filename = next_filename(f"search-{variant['locale']}.json")
+            add_step(
+                sub_id,
+                "search",
+                f"{purpose}: {variant['label']}",
+                command_search(variant["query"], extra_sources, filename),
+                filename,
+            )
 
     def has_capability(name: str) -> bool:
         return any(item.get("capability") == name for item in capability_plan)
@@ -829,7 +855,7 @@ def build_deep_research_plan(query: str, budget: str = "standard", evidence_dir:
         )
         add_step("sq1", "fetch", "fetch user supplied URL first", f"smart-search fetch {_quote_arg(url)} --format markdown --output {_quote_arg(_path_join(evidence_root, '01-fetch.md'))}", "01-fetch.md")
         add_step("sq2", "exa-similar", "find adjacent sources from the provided URL", f"smart-search exa-similar {_quote_arg(url)} --num-results 5 --format json --output {_quote_arg(_path_join(evidence_root, '02-similar.json'))}", "02-similar.json")
-        add_step("sq2", "search", "broad discovery for missing context", command_search(question, 1), "03-search.json")
+        add_bilingual_search_steps("sq2", "broad discovery for missing context", 1)
     else:
         decomposition.append(
             _deep_subquestion(
@@ -840,7 +866,7 @@ def build_deep_research_plan(query: str, budget: str = "standard", evidence_dir:
             )
         )
         capability_plan.append(_deep_capability("broad_discovery", ["search"], "Find the initial answer shape and candidate sources."))
-        add_step("sq1", "search", "broad discovery and routing metadata", command_search(question, 1 if budget == "quick" else 3), "01-search.json")
+        add_bilingual_search_steps("sq1", "bilingual broad discovery and routing metadata", 1 if budget == "quick" else 3)
 
         if docs_intent:
             decomposition.append(
@@ -889,14 +915,13 @@ def build_deep_research_plan(query: str, budget: str = "standard", evidence_dir:
                 _deep_subquestion(
                     sub_id,
                     f"{question} 的最新或中文/国内来源如何交叉验证？",
-                    "Current or China-scoped prompts benefit from Zhipu web-search reinforcement.",
+                    "Current or China-scoped prompts use bilingual search instead of Zhipu reinforcement.",
                     ["current_or_locale_source_discovery"],
                 )
             )
             capability_plan.append(
-                _deep_capability("current_or_locale_source_discovery", ["zhipu-search"], "Reinforce Chinese, domestic, or current web evidence.")
+                _deep_capability("current_or_locale_source_discovery", ["search"], "Use Chinese and English broad search for current or locale-sensitive evidence.")
             )
-            add_step(sub_id, "zhipu-search", "current or locale-specific source discovery", command_zhipu(question), f"{len(steps) + 1:02d}-zhipu.json")
 
         if complex_query:
             while len(decomposition) < (2 if budget != "deep" else 4):
@@ -929,10 +954,13 @@ def build_deep_research_plan(query: str, budget: str = "standard", evidence_dir:
             target_subquestion = decomposition[-1]["id"] if decomposition else "sq1"
             cross_validation_tools = next((item["tools"] for item in capability_plan if item.get("capability") == "cross_validation"), [])
             if recency_requirement != "none" or locale_domain_scope == "china" or zh_current_intent:
-                if "zhipu-search" not in cross_validation_tools:
-                    cross_validation_tools.append("zhipu-search")
-                if not any(step["tool"] == "zhipu-search" for step in steps):
-                    add_step(target_subquestion, "zhipu-search", "current or locale-specific cross-source discovery", command_zhipu(question), next_filename("zhipu.json"))
+                if "search" not in cross_validation_tools:
+                    cross_validation_tools.append("search")
+                if not any(
+                    step["tool"] == "search" and "English-language sources" in step.get("purpose", "")
+                    for step in steps
+                ):
+                    add_bilingual_search_steps(target_subquestion, "current or locale-specific cross-source discovery", 2)
             elif docs_intent:
                 if "context7-library" not in cross_validation_tools:
                     cross_validation_tools.extend(["context7-library", "context7-docs"])
@@ -1136,7 +1164,7 @@ async def research(
     if should_run_web_discovery:
         web_provider_order = routes["capabilities"]["web_search"]["providers"]
         if web_provider_order:
-            web_sources, attempts = await _run_web_search_fallback(
+            web_sources, attempts = await _run_bilingual_web_search(
                 question,
                 count=5,
                 providers=",".join(web_provider_order),
@@ -1248,13 +1276,13 @@ def get_capability_status() -> dict[str, Any]:
             "configured": [
                 name
                 for name, enabled in [
-                    ("zhipu", bool(config.zhipu_api_key)),
                     ("tavily", bool(config.tavily_api_key)),
                     ("firecrawl", bool(config.firecrawl_api_key)),
                 ]
                 if enabled
             ],
-            "fallback_chain": ["zhipu", "tavily", "firecrawl"],
+            "fallback_chain": ["tavily", "firecrawl"],
+            "deprecated_configured": ["zhipu"] if config.zhipu_api_key else [],
         },
         "docs_search": {
             "configured": [
@@ -1501,12 +1529,12 @@ async def _run_web_search_fallback(
     provider_filter = _parse_provider_filter(providers)
     attempts: list[dict] = []
     configured: list[str] = []
-    if config.zhipu_api_key:
-        configured.append("zhipu")
     if config.tavily_api_key:
         configured.append("tavily")
     if config.firecrawl_api_key:
         configured.append("firecrawl")
+    if provider_filter is not None and "zhipu" in provider_filter and config.zhipu_api_key:
+        configured.append("zhipu")
     if provider_filter is not None:
         configured = [p for p in configured if p in provider_filter]
     if fallback == "off":
@@ -1541,6 +1569,28 @@ async def _run_web_search_fallback(
         except Exception as e:
             attempts.append(_attempt("web_search", provider, "error", start, error_type="runtime_error", error=str(e)))
     return [], attempts
+
+
+async def _run_bilingual_web_search(
+    query: str,
+    count: int = 5,
+    providers: str = "auto",
+    fallback: str = "auto",
+) -> tuple[list[dict], list[dict]]:
+    all_sources: list[dict] = []
+    all_attempts: list[dict] = []
+    for variant in _bilingual_search_queries(query):
+        sources, attempts = await _run_web_search_fallback(
+            variant["query"],
+            count=count,
+            providers=providers,
+            fallback=fallback,
+        )
+        for source in sources:
+            source.setdefault("query_locale", variant["locale"])
+        all_sources = merge_sources(all_sources, sources)
+        all_attempts.extend(attempts)
+    return all_sources, all_attempts
 
 
 async def _run_docs_search_fallback(
@@ -1827,13 +1877,14 @@ async def search(
 
     docs_intent = _is_docs_intent(query)
     zh_current_intent = _is_zh_current_intent(query)
+    bilingual_web_search = True
     web_current_intent = zh_current_intent
     fetch_urls = _extract_urls(query)
     fetch_intent = bool(fetch_urls) or _is_fetch_intent(query)
     supplemental_paths: list[str] = []
     if docs_intent:
         supplemental_paths.append("docs_search")
-    if web_current_intent:
+    if bilingual_web_search:
         supplemental_paths.append("web_search")
     if fetch_intent:
         supplemental_paths.append("web_fetch")
@@ -1842,6 +1893,8 @@ async def search(
         "docs_intent": docs_intent,
         "zh_current_intent": zh_current_intent,
         "web_current_intent": web_current_intent,
+        "bilingual_web_search": bilingual_web_search,
+        "bilingual_query_locales": [item["locale"] for item in _bilingual_search_queries(query)],
         "fetch_intent": fetch_intent,
         "supplemental_paths": supplemental_paths,
         "validation_level": validation_level,
@@ -1932,8 +1985,8 @@ async def search(
             docs_sources, docs_attempts = await _run_docs_search_fallback(query, providers=providers, fallback=fallback_mode)
             provider_attempts.extend(docs_attempts)
             supplemental_sources.extend(docs_sources)
-        if web_current_intent:
-            web_sources, web_attempts = await _run_web_search_fallback(query, count=max(1, extra_sources or 3), providers=providers, fallback=fallback_mode)
+        if bilingual_web_search:
+            web_sources, web_attempts = await _run_bilingual_web_search(query, count=max(1, extra_sources or 3), providers=providers, fallback=fallback_mode)
             provider_attempts.extend(web_attempts)
             supplemental_sources.extend(web_sources)
         if fetch_intent:

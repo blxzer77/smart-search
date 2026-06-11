@@ -95,7 +95,7 @@ smart-search research "Deep research recent Bitcoin market movement" --budget de
 | --- | --- | --- | --- |
 | `main_search` | `search` | OpenAI-compatible Chat Completions | Broad answer generation and synthesis |
 | `docs_search` | `context7-library`, `context7-docs`, `exa-search` | Context7, Exa | Official docs, SDKs, APIs, framework/library evidence |
-| `web_search` | `zhipu-search`, Chinese/current intent-routed reinforcement inside `search` | Zhipu Web Search API, Tavily, Firecrawl | Chinese, domestic, current, domain-filtered, or supplementary web discovery |
+| `web_search` | Bilingual source discovery inside `search`; `zhipu-search` only for deprecated manual compatibility | Tavily, Firecrawl; Zhipu Web Search API only when explicitly requested | Chinese and English web discovery for every normal research question |
 | `web_fetch` | `fetch` | Tavily, Jina Reader, Firecrawl | Exact URL content extraction for evidence |
 | `site_map` | `map` | Tavily | Site/documentation structure discovery |
 | `research_executor` | `research` / `rs` | Registered providers by capability | Live staged research: plan, discover, fetch/read, gap check, evidence-only synthesis |
@@ -106,18 +106,18 @@ Fallback is same-capability only:
 | --- | --- |
 | `main_search` | OpenAI-compatible |
 | `docs_search` | Context7 for library/API/docs intent; Exa for official domains, papers, product pages, and trusted-site discovery |
-| `web_search` | Zhipu Web Search API -> Tavily -> Firecrawl |
+| `web_search` | Tavily -> Firecrawl; Zhipu only when explicitly selected for the deprecated legacy command |
 | `web_fetch` | Tavily -> Jina Reader with `JINA_API_KEY` -> Firecrawl |
 
 Jina Reader is a `web_fetch` provider only. `JINA_API_KEY` is required before Jina satisfies `SMART_SEARCH_MINIMUM_PROFILE=standard`; anonymous `r.jina.ai` behavior is treated as explicit/experimental fetch behavior and must not weaken fail-closed setup checks.
 
 The CLI exposes observability fields such as `routing_decision`, `provider_attempts`, `providers_used`, `fallback_used`, `primary_sources`, `extra_sources`, and `source_warning`.
 
-Inside `search`, automatic `web_search` reinforcement is reserved for Chinese, domestic, and current intent; `--validation strict` does not automatically route `web_search`. Strict evergreen queries without primary, docs, fetch, or explicit source evidence can return `evidence_error`; use `--extra-sources N`, source-first commands such as `zhipu-search` / `exa-search`, or `fetch` when citable evidence is required. Docs supplemental routing stays keyword-based for explicit docs/API/library/framework intent.
+Default `balanced` and `strict` `search` run bilingual `web_search` source discovery through Tavily / Firecrawl when configured: one Chinese-source query and one English-source query for the same user question. `--validation fast` skips supplemental discovery. Strict queries without primary, docs, fetch, or explicit source evidence can still return `evidence_error`; use `--extra-sources N`, source-first commands such as `exa-search`, or `fetch` when citable evidence is required. Docs supplemental routing stays keyword-based for explicit docs/API/library/framework intent.
 
 `extra_sources` are explicit discovery candidates from `--extra-sources N`, which defaults to `0`. For high-risk claims, news, policy, finance, health, selection decisions, and serious reviews, fetch key pages first and cite fetched text rather than treating a broad search answer as proof.
 
-Routing rule of thumb: start with `search` for broad discovery and synthesis; use `research` when you want the CLI to execute the deeper evidence workflow; use Zhipu Web Search API for Chinese, domestic, policy, announcements, and current-news searches; use Context7 first for library/API/framework docs; use Exa for official domains, papers, product pages, trusted sites, and low-noise discovery; use Tavily/Firecrawl through `search --extra-sources` for horizontal candidates and through `fetch` for page evidence; use Jina for known-URL extraction.
+Routing rule of thumb: start with `search` for broad bilingual discovery and synthesis; use `research` when you want the CLI to execute the deeper evidence workflow; use Context7 first for library/API/framework docs; use Exa for official domains, papers, product pages, trusted sites, and low-noise discovery; use Tavily/Firecrawl for bilingual web discovery and URL/page evidence; use Jina for known-URL extraction. Zhipu is retained only as a deprecated manual compatibility command, not a default route.
 
 ## Deep Research
 
@@ -148,7 +148,7 @@ Deep Research is not a fixed topic recipe system. Market research, product compa
 The plan only composes existing CLI blocks:
 
 ```text
-search, exa-search, exa-similar, zhipu-search, context7-library, context7-docs, fetch, map
+search, exa-search, exa-similar, context7-library, context7-docs, fetch, map
 ```
 
 `doctor` is preflight, not a research step.
@@ -160,7 +160,7 @@ Research JSON includes `final_answer`, `citations`, `evidence_items`, `gap_check
 The research router is capability-first plus provider-advantage:
 
 - Context7 first for library/API/framework docs, with Exa as official-domain, paper, product, or trusted low-noise discovery.
-- Zhipu Web Search API first for Chinese, domestic, current, policy, and announcement searches.
+- Tavily / Firecrawl for bilingual Chinese and English broad source discovery. Zhipu is deprecated from default routing and is not used for Chinese/current/domestic searches unless explicitly requested through the legacy command.
 - Jina is favored for known public URLs, PDFs, and arXiv extraction; ReaderLM-v2 still requires `JINA_API_KEY`.
 - Firecrawl is favored for JS-heavy, dynamic, browser-like, OCR/PDF, or robust fallback extraction.
 
@@ -184,7 +184,7 @@ Use `smart-search setup` for normal configuration. Environment variables remain 
 | OpenAI-compatible Chat Completions | Primary live search through OpenAI or a compatible relay | `OPENAI_COMPATIBLE_API_URL`, `OPENAI_COMPATIBLE_API_KEY`, `OPENAI_COMPATIBLE_MODEL`, `OPENAI_COMPATIBLE_STREAM` | [OpenAI platform docs](https://platform.openai.com/docs) | [OpenAI API keys](https://platform.openai.com/api-keys) or your relay provider |
 | Exa | Low-noise official docs, API, paper, product, trusted-page discovery | `EXA_API_KEY` | [Exa docs](https://docs.exa.ai/) | [Exa API keys](https://dashboard.exa.ai/api-keys) |
 | Context7 | SDK, library, framework, and API documentation fallback | `CONTEXT7_API_KEY`, `CONTEXT7_BASE_URL` | [Context7 docs](https://context7.com/docs) | [Context7](https://context7.com/) |
-| Zhipu Web Search API | Chinese, domestic, current, or domain-filtered web discovery | `ZHIPU_API_KEY`, `ZHIPU_API_URL`, `ZHIPU_SEARCH_ENGINE` | [Zhipu web search docs](https://docs.bigmodel.cn/cn/guide/tools/web-search) | [Zhipu API keys](https://open.bigmodel.cn/usercenter/apikeys) |
+| Zhipu Web Search API | Deprecated manual `zhipu-search` compatibility only; not used by default routing | `ZHIPU_API_KEY`, `ZHIPU_API_URL`, `ZHIPU_SEARCH_ENGINE` | [Zhipu web search docs](https://docs.bigmodel.cn/cn/guide/tools/web-search) | [Zhipu API keys](https://open.bigmodel.cn/usercenter/apikeys) |
 | Tavily | Extra web sources, URL fetch, and site map | `TAVILY_API_URL`, `TAVILY_API_KEY` | [Tavily docs](https://docs.tavily.com/) | [Tavily app](https://app.tavily.com/home) |
 | Jina Reader | Known URL page extraction for `web_fetch`; key required for standard minimum profile | `JINA_API_KEY`, `JINA_READER_API_URL`, `JINA_RESPOND_WITH`, `JINA_TIMEOUT_SECONDS` | [Jina Reader](https://jina.ai/reader/) | [Jina AI](https://jina.ai/) |
 | Firecrawl | Fetch fallback and supplementary web sources | `FIRECRAWL_API_URL`, `FIRECRAWL_API_KEY` | [Firecrawl docs](https://docs.firecrawl.dev/) | [Firecrawl API keys](https://www.firecrawl.dev/app/api-keys) |
@@ -194,6 +194,7 @@ Important boundaries:
 - OpenAI-compatible relays and gateways use the Chat Completions `/chat/completions` route through `OPENAI_COMPATIBLE_*`.
 - `OPENAI_COMPATIBLE_STREAM=true` or `smart-search search --stream` sets `stream=true` only for OpenAI-compatible `search` and provider-side `fetch` calls. It is a relay compatibility switch for long requests and does not change URL description or source ranking.
 - Legacy `SMART_SEARCH_API_URL`, `SMART_SEARCH_API_KEY`, `SMART_SEARCH_API_MODE`, and `SMART_SEARCH_MODEL` are not supported config keys. Use `OPENAI_COMPATIBLE_*` explicitly.
+- Default web discovery is bilingual Tavily / Firecrawl. `zhipu-search` is retained only as a deprecated manual compatibility command and is not used by normal `search` or `research` routing.
 - `zhipu-search` support is the Web Search API route, not Zhipu Chat Completions `tools=[web_search]`, not Search Agent, and not the MCP Server.
 - Jina Reader is not a general search provider. `JINA_API_KEY` is required for Jina to count toward `standard`; `JINA_RESPOND_WITH=readerlm-v2` also requires `JINA_API_KEY`.
 - `ZHIPU_SEARCH_ENGINE` defaults to `search_std`. Supported official values include `search_std`, `search_pro`, `search_pro_sogou`, and `search_pro_quark`; custom values remain allowed for future services.
@@ -213,15 +214,14 @@ smart-search setup --non-interactive `
   --minimum-profile "standard" `
   --exa-key "your-exa-key" `
   --context7-key "your-context7-key" `
-  --zhipu-key "your-zhipu-key" `
-  --zhipu-api-url "https://open.bigmodel.cn/api" `
-  --zhipu-search-engine "search_pro_sogou" `
   --jina-key "your-jina-key" `
   --tavily-api-url "https://api.tavily.com" `
   --tavily-key "your-tavily-key" `
   --firecrawl-api-url "https://api.firecrawl.dev/v2" `
   --firecrawl-key "your-firecrawl-key"
 ```
+
+For explicit legacy Zhipu compatibility only, `smart-search setup --non-interactive --zhipu-key "your-zhipu-key" --zhipu-api-url "https://open.bigmodel.cn/api" --zhipu-search-engine "search_pro_sogou"` still saves the deprecated manual route.
 
 Minimum profile defaults to `standard`, requiring at least:
 
@@ -231,13 +231,15 @@ Minimum profile defaults to `standard`, requiring at least:
 
 Missing required capabilities fail closed with a configuration error. Use `SMART_SEARCH_MINIMUM_PROFILE=off` only for local experiments.
 
-Local config path:
+Local config and evidence paths:
 
 - Windows default: `%LOCALAPPDATA%\smart-search\config.json`.
 - Linux/macOS default: `~/.config/smart-search/config.json`.
 - `SMART_SEARCH_CONFIG_DIR` is an advanced override for CI, containers, sandboxes, or portable installs.
+- `research` evidence defaults to `evidence` under the active config directory, for example `%LOCALAPPDATA%\smart-search\evidence` on Windows.
+- `SMART_SEARCH_EVIDENCE_DIR` overrides the evidence root. Relative values resolve under the active config directory; absolute values are used as-is.
 - `SMART_SEARCH_RESEARCH_PREFERRED_PROVIDERS` and `SMART_SEARCH_RESEARCH_DISABLED_PROVIDERS` are advanced `research` routing overrides. They accept provider CSV values and can only reorder or disable providers inside existing capability boundaries.
-- Earlier Windows source builds defaulted to `~\.config\smart-search\config.json`, while some installs were already pinned to `%LOCALAPPDATA%\smart-search` through `SMART_SEARCH_CONFIG_DIR`. If the new Windows default file is missing but the old home config exists, Smart Search reads the old file as `legacy_windows_home` so upgrades do not lose configuration. `doctor` reports the active path, default path, old home path, `SMART_SEARCH_CONFIG_DIR`, and whether that override merely matches the current default.
+- Earlier Windows source builds defaulted to `~\.config\smart-search\config.json`, while some installs were already pinned to `%LOCALAPPDATA%\smart-search` through `SMART_SEARCH_CONFIG_DIR`. If the new Windows default file is missing but the old home config exists, Smart Search reads the old file as `legacy_windows_home` so upgrades do not lose configuration. `config path` and `doctor` report the active/default/legacy config paths, `SMART_SEARCH_CONFIG_DIR`, `SMART_SEARCH_EVIDENCE_DIR`, and the resolved evidence root.
 
 Provider timeouts:
 
@@ -254,7 +256,7 @@ Provider timeouts:
 | `map` | `m` | Map a website structure |
 | `exa-search` | `exa`, `x` | Exa source discovery |
 | `exa-similar` | `xs` | Similar pages from one URL |
-| `zhipu-search` | `z`, `zp` | Zhipu Web Search API |
+| `zhipu-search` | `z`, `zp` | Deprecated legacy Zhipu Web Search API |
 | `context7-library` | `c7`, `ctx7` | Resolve Context7 library candidates |
 | `context7-docs` | `c7d`, `c7docs`, `ctx7-docs` | Fetch Context7 docs |
 | `doctor` | `d` | Masked config and connectivity check |
@@ -273,7 +275,6 @@ smart-search search "nba report" --format content
 smart-search exa-search "OpenAI Responses API documentation" --include-domains platform.openai.com developers.openai.com --num-results 5 --include-text --format json
 smart-search context7-library "react" "hooks" --format json
 smart-search context7-docs "/facebook/react" "useEffect cleanup" --format json
-smart-search zhipu-search "today China AI news" --search-engine search_pro_sogou --count 5 --format json
 smart-search exa-similar "https://example.com/source" --num-results 5 --format json
 smart-search fetch "https://example.com/source" --format markdown --output page.md
 smart-search map "https://docs.example.com" --instructions "Find API reference pages" --max-depth 1 --limit 50 --format json
@@ -311,13 +312,16 @@ smart-search doctor --format content
 Save multi-source evidence under a stable folder:
 
 ```powershell
-smart-search exa-search "Reuters Iran Hormuz latest" --format json --output C:\tmp\smart-search-evidence\iran-hormuz\01-exa.json
-smart-search fetch "https://example.com/source" --format markdown --output C:\tmp\smart-search-evidence\iran-hormuz\02-fetch.md
+$Config = smart-search config path --format json | ConvertFrom-Json
+$EvidenceDir = Join-Path $Config.resolved_evidence_dir "iran-hormuz"
+New-Item -ItemType Directory -Force -Path $EvidenceDir | Out-Null
+smart-search exa-search "Reuters Iran Hormuz latest" --format json --output (Join-Path $EvidenceDir "01-exa.json")
+smart-search fetch "https://example.com/source" --format markdown --output (Join-Path $EvidenceDir "02-fetch.md")
 ```
 
 For claim-level evidence:
 
-1. Discover candidate URLs with `search`, `exa-search`, `zhipu-search`, or `exa-similar`.
+1. Discover candidate URLs with bilingual `search`, `exa-search`, or `exa-similar`.
 2. Fetch exact URLs with `fetch`.
 3. Cite fetched text in the final answer.
 4. Unsupported key claims must be fetched or downgraded to unverified candidates.
@@ -345,7 +349,7 @@ If search is slow:
 
 - reduce `--extra-sources`;
 - split broad questions into smaller queries;
-- use `exa-search` or `zhipu-search` for source discovery, then `fetch` key pages.
+- use bilingual `search` or `exa-search` for source discovery, then `fetch` key pages.
 
 If installed CLI health is uncertain:
 

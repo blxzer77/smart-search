@@ -114,6 +114,26 @@ def test_env_dir_also_governs_log_dir_parent(monkeypatch, tmp_path):
     assert not (target / "logs").exists()
 
 
+def test_env_dir_also_governs_default_evidence_dir_parent(monkeypatch, tmp_path):
+    target = tmp_path / "shared-root"
+    monkeypatch.setenv("SMART_SEARCH_CONFIG_DIR", str(target))
+    config = _fresh_config_file(monkeypatch)
+    assert config.evidence_dir == target / "evidence"
+    assert config.evidence_dir_config_value == "evidence"
+    assert not (target / "evidence").exists()
+
+
+def test_absolute_evidence_dir_is_resolved_without_creation(monkeypatch, tmp_path):
+    target = tmp_path / "shared-root"
+    evidence_dir = tmp_path / "explicit-evidence"
+    monkeypatch.setenv("SMART_SEARCH_CONFIG_DIR", str(target))
+    monkeypatch.setenv("SMART_SEARCH_EVIDENCE_DIR", str(evidence_dir))
+    config = _fresh_config_file(monkeypatch)
+    assert config.evidence_dir == evidence_dir
+    assert config.evidence_dir_config_value == str(evidence_dir)
+    assert not evidence_dir.exists()
+
+
 def test_tavily_timeout_defaults_to_sixty_seconds(monkeypatch):
     monkeypatch.delenv("TAVILY_TIMEOUT_SECONDS", raising=False)
     config = _fresh_config_file(monkeypatch)

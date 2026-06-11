@@ -13,18 +13,19 @@ Use the local `smart-search` command as the default execution layer for web rese
 2. If `doctor` reports missing configuration, use `smart-search setup` or `smart-search config set KEY VALUE` when the user provides keys. Do not ask users to edit global environment variables by default.
 3. If OpenAI-compatible `search` hangs or times out after `doctor` succeeds, run `smart-search diagnose openai-compatible --format markdown` and use its summary/recommendation. This one command tests quick chat plus real search-shape `stream=false` and `stream=true`.
 4. If `doctor` returns `ok: true`, use only `smart-search` CLI subcommands for web research. Do not call Codex native web search in the same task.
-5. Use `smart-search search` as the first hop for realtime, broad exploration, community signals, multi-source summaries, and routing metadata.
-6. Use `smart-search zhipu-search` for Chinese-language, domestic China, policy/regulatory, announcements, current news, or China-local source discovery.
-7. Use `smart-search context7-library` / `context7-docs` first for library, SDK, API, framework, or documentation intent.
-8. Use `smart-search exa-search` for official domains, papers, product pages, trusted sites, and low-noise discovery. Do not treat Exa as the universal second hop for every high-risk or verification task.
-9. Use `smart-search search --extra-sources N` for Tavily/Firecrawl horizontal candidates, and `smart-search fetch` for page text that can support final claims.
-10. Use `smart-search exa-similar` when the user gives a representative URL and wants related pages or neighboring sources.
-11. Use `smart-search fetch` when the user gives a URL or a claim depends on page content.
-12. Use `smart-search map` when a documentation site or domain structure matters.
-13. To change the main-search model, use `smart-search config set OPENAI_COMPATIBLE_MODEL ...`.
-14. For current-news, policy, finance, health, or other high-risk facts, do not answer from broad `search.content` alone. Select the second source by intent: Zhipu for Chinese/current/domestic, Context7 for docs/API, Exa for official/trusted domains or papers, then `fetch` key pages and summarize only what fetched text supports.
-15. Use `smart-search research "question" --format json` when the user wants the CLI to run live Deep Research end to end instead of only planning. It executes plan -> discover -> fetch/read -> gap check -> evidence-only synthesis.
-16. Preserve command lines and source URLs in your answer. Prefer citing fetched pages or `primary_sources`; treat `extra_sources` as follow-up candidates, not verified evidence for generated claims.
+5. For every research question, run a bilingual `smart-search search` pair: one Chinese-source query and one English-source query. Save both JSON outputs.
+6. Use `smart-search search` as the first hop for realtime, broad exploration, community signals, multi-source summaries, and routing metadata. The default broad pass is bilingual, not Zhipu-backed.
+7. Do not use `smart-search zhipu-search` in normal workflows. Zhipu is deprecated and not used by default routing because quota may be unavailable; the command remains only for manual legacy compatibility when the user explicitly asks for it.
+8. Use `smart-search context7-library` / `context7-docs` first for library, SDK, API, framework, or documentation intent.
+9. Use `smart-search exa-search` for official domains, papers, product pages, trusted sites, and low-noise discovery. Do not treat Exa as the universal second hop for every high-risk or verification task.
+10. Use `smart-search search --extra-sources N` for Tavily/Firecrawl horizontal candidates, and `smart-search fetch` for page text that can support final claims.
+11. Use `smart-search exa-similar` when the user gives a representative URL and wants related pages or neighboring sources.
+12. Use `smart-search fetch` when the user gives a URL or a claim depends on page content.
+13. Use `smart-search map` when a documentation site or domain structure matters.
+14. To change the main-search model, use `smart-search config set OPENAI_COMPATIBLE_MODEL ...`.
+15. For current-news, policy, finance, health, or other high-risk facts, do not answer from broad `search.content` alone. Use the bilingual search pair plus intent-specific sources: Context7 for docs/API, Exa for official/trusted domains or papers, then `fetch` key pages and summarize only what fetched text supports.
+16. Use `smart-search research "question" --format json` when the user wants the CLI to run live Deep Research end to end instead of only planning. It executes plan -> discover -> fetch/read -> gap check -> evidence-only synthesis.
+17. Preserve command lines and source URLs in your answer. Prefer citing fetched pages or `primary_sources`; treat `extra_sources` as follow-up candidates, not verified evidence for generated claims.
 
 ## Deep Research Mode
 
@@ -79,8 +80,8 @@ When `smart-search research` runs, it builds an internal `research_plan` as its 
       "subquestion_id": "sq1",
       "tool": "search",
       "purpose": "broad discovery",
-      "command": "smart-search search \"query\" --validation balanced --extra-sources 1 --format json --output C:\\tmp\\smart-search-evidence\\YYYYMMDD-HHMM-topic\\01-search.json",
-      "output_path": "C:\\tmp\\smart-search-evidence\\YYYYMMDD-HHMM-topic\\01-search.json"
+      "command": "smart-search search \"query\" --validation balanced --extra-sources 1 --format json --output <resolved_evidence_dir>\\YYYYMMDD-HHMM-topic\\01-search.json",
+      "output_path": "<resolved_evidence_dir>\\YYYYMMDD-HHMM-topic\\01-search.json"
     }
   ],
   "gap_check": {
@@ -95,12 +96,12 @@ When `smart-search research` runs, it builds an internal `research_plan` as its 
 }
 ```
 
-Allowed `steps[].tool` values are `search`, `exa-search`, `exa-similar`, `zhipu-search`, `context7-library`, `context7-docs`, `fetch`, and `map`. Each step must include `id`, `subquestion_id`, `purpose`, `command`, and `output_path`. `doctor` is preflight and must not appear in `steps[]`. Simple plans may have one subquestion; complex plans should use 2-6 subquestions unless the user explicitly asks for exhaustive coverage.
+Allowed `steps[].tool` values are `search`, `exa-search`, `exa-similar`, `context7-library`, `context7-docs`, `fetch`, and `map`. Each step must include `id`, `subquestion_id`, `purpose`, `command`, and `output_path`. `doctor` is preflight and must not appear in `steps[]`. Simple plans may have one subquestion; complex plans should use 2-6 subquestions unless the user explicitly asks for exhaustive coverage.
 
 Capability boundaries:
 
-- `search`: broad discovery and synthesis through `main_search`; inspect `routing_decision`, `provider_attempts`, `fallback_used`, and `source_warning`. Do not treat broad answers as proof for high-risk claims.
-- `zhipu-search`: Chinese, domestic, current, policy/regulatory, announcement, and China-local source discovery.
+- `search`: broad bilingual discovery and synthesis through `main_search`; inspect `routing_decision`, `provider_attempts`, `fallback_used`, and `source_warning`. Do not treat broad answers as proof for high-risk claims.
+- `zhipu-search`: deprecated manual compatibility command. Do not include it in default plans or workflows unless the user explicitly requests Zhipu.
 - `context7-library` / `context7-docs`: library, SDK, API, framework, and documentation intent. Prefer Context7 before Exa for docs/API questions.
 - `exa-search`: low-noise discovery for official domains, papers, product pages, known domains, and trusted pages. Use it when that boundary fits; it is not the default second hop for every verification task.
 - `exa-similar`: adjacent-source discovery when a known reliable URL is available.
@@ -112,8 +113,8 @@ Default Deep Research orchestration:
 
 1. Run `smart-search doctor --format json` as preflight when configuration is uncertain.
 2. `smart-search research` builds an internal `research_plan` with `intent_signals`, `decomposition`, and `capability_plan`; do not choose fixed topic recipe ids.
-3. Execute planned `search --validation balanced --extra-sources 1..3` steps for broad discovery and read routing metadata.
-4. Execute planned `exa-search`, `exa-similar`, `zhipu-search`, `context7-library`, `context7-docs`, or `map` only when their capability boundary matches the intent.
+3. Execute planned bilingual `search --validation balanced --extra-sources 1..3` steps for Chinese-source and English-source broad discovery, then read routing metadata.
+4. Execute planned `exa-search`, `exa-similar`, `context7-library`, `context7-docs`, or `map` only when their capability boundary matches the intent.
 5. Use `fetch` on key URLs before making claim-level statements.
 6. Run `gap_check`: if an important claim lacks fetched evidence, fetch another source or mark the claim/source as unverified.
 
@@ -131,14 +132,13 @@ Research provider advantage routing:
 
 - Context7: library/API/framework docs resolution and docs retrieval.
 - Exa: official domains, papers, product/company pages, date/domain-filtered low-noise discovery, and adjacent-source discovery.
-- Zhipu REST: Chinese, domestic, current, policy, and announcement searches.
-- Tavily: broad source discovery and site map.
+- Tavily: broad bilingual source discovery and site map.
 - Jina: known public URL, PDF, and arXiv clean extraction; ReaderLM-v2 requires `JINA_API_KEY`.
 - Firecrawl: robust fetch fallback, JS-heavy/dynamic pages, browser-like extraction, OCR/PDF/structured extraction.
 
 Safe research overrides are `SMART_SEARCH_RESEARCH_PREFERRED_PROVIDERS` and `SMART_SEARCH_RESEARCH_DISABLED_PROVIDERS`. They may reorder or disable providers only within capabilities the provider already supports; they must not move a provider across capability boundaries.
 
-Deep Research test coverage for workflow maintenance should verify trigger phrases, normal search requests that should not trigger Deep Research, required `research_plan` fields, allowed tool whitelist, `fetch_before_claim`, evidence output paths, capability boundaries, `intent_signals`, `capability_plan`, `gap_check`, simple current prompts such as `深度搜索一下最近的比特币行情`, docs/API prompts, claim-verification prompts, user-provided URL fetch-first flows, missing-provider failure guidance, and the rule that fixed topic recipe ids are not required schema. When real keys are available and the user expects live checks, a small live pass can run `doctor`, one broad `search`, one `exa-search`, and one `fetch`.
+Deep Research test coverage for workflow maintenance should verify trigger phrases, normal search requests that should not trigger Deep Research, required `research_plan` fields, allowed tool whitelist, bilingual search steps, `fetch_before_claim`, evidence output paths, capability boundaries, `intent_signals`, `capability_plan`, `gap_check`, simple current prompts such as `深度搜索一下最近的比特币行情`, docs/API prompts, claim-verification prompts, user-provided URL fetch-first flows, missing-provider failure guidance, and the rule that fixed topic recipe ids are not required schema. When real keys are available and the user expects live checks, a small live pass can run `doctor`, two broad `search` commands (Chinese and English), one `exa-search`, and one `fetch`.
 
 Standard user-facing Deep Research tests:
 
@@ -159,8 +159,8 @@ smart-search research "https://example.com/source" --format json
 - The standard minimum profile requires one configured provider in each of `main_search`, `docs_search`, and fetch capability. Missing required capabilities should be treated as a hard configuration failure.
 - Jina Reader is `web_fetch` only, not a general search provider. `JINA_API_KEY` is required before Jina satisfies the standard minimum profile; anonymous `r.jina.ai` is explicit/experimental fetch behavior.
 - `search` exposes `--validation fast|balanced|strict`, `--fallback auto|off`, and `--providers auto|CSV`. Default validation is `balanced`; fallback only happens within the same capability.
-- `search --validation strict` does not automatically route `web_search`. Strict evergreen queries without primary, docs, fetch, or explicit source evidence can fail with `evidence_error`; use `--extra-sources N`, source-first commands such as `zhipu-search` / `exa-search`, or `fetch` when citable evidence is required.
-- `search` automatically routes `web_search` only for Chinese, domestic, or current intent. Zhipu Web Search API remains the first `web_search` provider when that route is selected, followed by same-capability Tavily / Firecrawl source search when configured.
+- `search --validation strict` uses the same bilingual web_search policy as balanced mode when source discovery providers are configured. Strict queries without primary, docs, fetch, or explicit source evidence can still fail with `evidence_error`; use `--extra-sources N`, source-first commands such as `exa-search`, or `fetch` when citable evidence is required.
+- `search` runs bilingual web_search source discovery through Tavily / Firecrawl when configured. Zhipu is deprecated from default routing and is not the first hop for Chinese/current/domestic searches.
 - Docs/API/library routing stays explicit keyword intent-based and should prefer Context7 first. Exa is for official-domain or low-noise supplemental discovery, not the default docs answer route.
 - `search` calls Tavily and/or Firecrawl for `extra_sources` only when `--extra-sources N` is greater than 0.
 - With both Tavily and Firecrawl configured, `search --extra-sources N` splits extra sources between them, with Tavily receiving about 60% and Firecrawl the rest.
@@ -170,7 +170,7 @@ smart-search research "https://example.com/source" --format json
 - `map` currently uses Tavily only.
 - `exa-search` and `exa-similar` use Exa only.
 - `context7-library` and `context7-docs` use Context7 only.
-- `zhipu-search` uses Zhipu only.
+- `zhipu-search` uses Zhipu only and is retained as a deprecated manual compatibility command.
 - `zhipu-search` corresponds to the official Zhipu Web Search API route, using `ZHIPU_API_URL` plus `ZHIPU_SEARCH_ENGINE`; it is not Zhipu Chat Completions `tools=[web_search]`, not Search Agent, and not the MCP Server.
 - `ZHIPU_SEARCH_ENGINE` defaults to `search_std`. Official Web Search API service values include `search_std`, `search_pro`, `search_pro_sogou`, and `search_pro_quark`; keep custom values possible because official services may change.
 - `TAVILY_API_URL` only affects Tavily REST calls and does not proxy Zhipu. Zhipu defaults to `https://open.bigmodel.cn/api` unless `ZHIPU_API_URL` is set.
@@ -178,22 +178,25 @@ smart-search research "https://example.com/source" --format json
 
 ## Evidence Files
 
-For multi-source research, use `--output` to save evidence under `C:\tmp\smart-search-evidence\` with a descriptive timestamped filename. Stdout should still contain the full JSON result unless markdown or content output was explicitly chosen for human reading.
+For multi-source research, use `smart-search config path --format json` and save evidence under `resolved_evidence_dir` with a descriptive timestamped filename. Stdout should still contain the full JSON result unless markdown or content output was explicitly chosen for human reading.
 
 For claim-level evidence, prefer this order:
 
-1. Discover candidate URLs with source-focused `search`, `zhipu-search` for Chinese/current/domestic topics, Context7 for docs/API/library topics, or `exa-search` for official/trusted domains and papers.
+1. Discover candidate URLs with a bilingual source-focused `search` pair, Context7 for docs/API/library topics, or `exa-search` for official/trusted domains and papers.
 2. Fetch the exact pages that matter.
 3. Use broad `search` only as synthesis or discovery, and mark claims as unverified when only `extra_sources` are available.
 
 Prefer shorter, source-directed commands:
 
 ```powershell
-smart-search exa-search "Reuters Iran Hormuz latest" --num-results 5 --include-highlights --format json --output C:\tmp\smart-search-evidence\iran-hormuz-exa.json
+$Config = smart-search config path --format json | ConvertFrom-Json
+$EvidenceDir = Join-Path $Config.resolved_evidence_dir "YYYYMMDD-HHMM-topic"
+New-Item -ItemType Directory -Force -Path $EvidenceDir | Out-Null
+smart-search exa-search "Reuters Iran Hormuz latest" --num-results 5 --include-highlights --format json --output (Join-Path $EvidenceDir "01-iran-hormuz-exa.json")
 smart-search exa-search "OpenAI Responses API documentation" --include-domains platform.openai.com developers.openai.com --num-results 5 --include-text --format json
 smart-search exa-similar "https://example.com/source" --num-results 5 --format json
-smart-search fetch "https://example.com/source" --format json --output C:\tmp\smart-search-evidence\source-fetch.json
-smart-search search "Iran Hormuz latest military talks" --extra-sources 3 --timeout 90 --format json --output C:\tmp\smart-search-evidence\iran-hormuz-search.json
+smart-search fetch "https://example.com/source" --format json --output (Join-Path $EvidenceDir "02-source-fetch.json")
+smart-search search "Iran Hormuz latest military talks" --extra-sources 3 --timeout 90 --format json --output (Join-Path $EvidenceDir "03-iran-hormuz-search.json")
 ```
 
 ## Workflows
@@ -204,13 +207,14 @@ Use these recipes when the user asks for evidence, citations, repeated searches,
 
 Use this when the user needs a source-backed answer but not full Deep Research.
 
-1. Create an evidence directory such as `C:\tmp\smart-search-evidence\YYYYMMDD-HHMM-topic\`.
+1. Create an evidence directory under the system-aware Smart Search evidence root reported by `smart-search config path --format json`.
 2. Discover candidate sources by intent:
-   - Broad or mixed intent: `smart-search search "query" --validation balanced --extra-sources 1 --format json --output C:\tmp\smart-search-evidence\YYYYMMDD-HHMM-topic\01-search.json`
-   - Chinese, domestic, or current intent: `smart-search zhipu-search "query" --count 5 --format json --output C:\tmp\smart-search-evidence\YYYYMMDD-HHMM-topic\01-zhipu.json`
-   - Docs/API/library/framework intent: `smart-search context7-library "library" "topic" --format json --output C:\tmp\smart-search-evidence\YYYYMMDD-HHMM-topic\01-context7-library.json`
-   - Official domains, papers, product pages, or trusted sites: `smart-search exa-search "query" --num-results 5 --include-text --include-highlights --format json --output C:\tmp\smart-search-evidence\YYYYMMDD-HHMM-topic\01-exa.json`
-3. Fetch the one or two URLs that support the answer: `smart-search fetch "https://example.com/source" --format markdown --output C:\tmp\smart-search-evidence\YYYYMMDD-HHMM-topic\02-fetch-source.md`.
+   - Always run the bilingual broad pair:
+     - `smart-search search "中文搜索，优先检索中文来源，并回答原问题：query" --validation balanced --extra-sources 1 --format json --output "$EvidenceDir\01-search-zh.json"`
+     - `smart-search search "Search English-language sources and answer the original question: query" --validation balanced --extra-sources 1 --format json --output "$EvidenceDir\02-search-en.json"`
+   - Docs/API/library/framework intent: `smart-search context7-library "library" "topic" --format json --output "$EvidenceDir\01-context7-library.json"`
+   - Official domains, papers, product pages, or trusted sites: `smart-search exa-search "query" --num-results 5 --include-text --include-highlights --format json --output "$EvidenceDir\01-exa.json"`
+3. Fetch the one or two URLs that support the answer: `smart-search fetch "https://example.com/source" --format markdown --output "$EvidenceDir\02-fetch-source.md"`.
 4. Write the final answer only from fetched page text or clearly label unfetched items as candidates.
 
 See `examples/evidence-gathering.md` for a complete command sequence.
@@ -219,7 +223,7 @@ See `examples/evidence-gathering.md` for a complete command sequence.
 
 Use this when the user asks for deep research, cross-checking, serious comparison, or a multi-source investigation.
 
-1. Run the live executor: `smart-search research "question" --budget standard --format json --output C:\tmp\smart-search-evidence\YYYYMMDD-HHMM-topic\research.json`.
+1. Run the live executor: `smart-search research "question" --budget standard --format json --output "$EvidenceDir\research.json"`.
 2. Read `research_plan`, `evidence_items`, `gap_check`, `citations`, and `final_answer`.
 3. If `degraded` is true or `gap_check` lists open gaps, either fetch more sources or report the remaining gaps instead of filling them from memory.
 
@@ -232,8 +236,7 @@ Use this when the user gives multiple queries, companies, tools, documents, URLs
 1. Create one evidence directory for the batch.
 2. Run one CLI command per query or URL, using numbered outputs such as `01-search-react.json`, `02-search-vue.json`, or `03-fetch-docs.md`.
 3. Keep each command narrow:
-   - Use `search --extra-sources 1` for quick broad discovery.
-   - Use `zhipu-search` for Chinese/current/domestic items.
+   - Use the bilingual `search --extra-sources 1` pair for quick broad discovery.
    - Use `context7-library` / `context7-docs` for docs/API/library items.
    - Use `exa-search` for official/trusted-domain discovery.
    - Use `fetch` for each URL that will support a claim.
@@ -262,17 +265,18 @@ Use this when the user wants work that can be inspected, resumed, or audited.
 - If PATH is changed, a new terminal or Codex restart may be needed.
 - On Windows, the default local config file is `%LOCALAPPDATA%\smart-search\config.json`. Linux/macOS default to `~/.config/smart-search/config.json`.
 - In sandboxed runtimes (Codex CLI, containers, CI) where the default config directory is not writable or must be pinned, set `SMART_SEARCH_CONFIG_DIR` to an absolute writable path. The CLI uses it for both config and relative logs and skips default-directory selection.
+- The default research evidence root is `evidence` under the active config directory. Set `SMART_SEARCH_EVIDENCE_DIR` only when evidence needs a separate absolute location; `config path` and `doctor` report both the configured and resolved evidence paths.
 - Earlier Windows source defaults used `~\.config\smart-search\config.json`, while some installs were already pinned to `%LOCALAPPDATA%\smart-search` through `SMART_SEARCH_CONFIG_DIR`. If the new default file is missing but the old file exists, `doctor` reports `legacy_windows_home` as the active source so upgrades do not silently lose configuration. It also reports the override value and whether it matches the current default.
 - Use `smart-search doctor --format json` for agent/script parsing and `smart-search doctor --format markdown` when a human wants a detailed diagnostic report.
 - If `smart-search doctor --format json` returns `ok: false`, follow the `error` field's guidance (`smart-search setup` or `smart-search config set KEY VALUE`); do not silently fall back to native web search.
 - Use `smart-search diagnose openai-compatible --format markdown` when `doctor` succeeds but OpenAI-compatible `search` appears to hang, returns a timeout, or differs between `--stream` and `--no-stream`. It is the beginner-facing one-command report for upstream/relay compatibility.
-- Interactive `smart-search setup` is a language-selecting grouped wizard with arrow-key / Space / Enter provider selection. It guides users through required `main_search`, `docs_search`, and fetch capability, then optional `web_search` reinforcement.
+- Interactive `smart-search setup` is a language-selecting grouped wizard with arrow-key / Space / Enter provider selection. It guides users through required `main_search`, `docs_search`, and fetch capability. Zhipu is no longer recommended or prompted in the default setup flow.
 - The setup wizard prints beginner filling examples for official-service and relay/pooled-endpoint minimum profiles. Keep that guidance on stderr so stdout remains parseable JSON/Markdown/content output.
 - Use `smart-search setup --lang en` for an English wizard and `smart-search setup --advanced` only when low-level config keys must be shown one by one.
-- Use `smart-search setup --non-interactive --zhipu-api-url "https://open.bigmodel.cn/api" --zhipu-search-engine "search_std"` to save Zhipu Web Search API endpoint and search service without prompts.
+- Use `smart-search config set ZHIPU_API_KEY ...` only for explicit legacy Zhipu compatibility. Do not set it up for default workflows.
 - Use `smart-search setup --non-interactive --jina-key "key"` to let Jina satisfy `web_fetch`; `JINA_RESPOND_WITH=readerlm-v2` also requires `JINA_API_KEY`.
 - Use `smart-search setup --non-interactive --openai-compatible-stream true` only when an OpenAI-compatible relay benefits from SSE streaming for long requests. Default is true.
-- Interactive setup asks for Zhipu API key, API URL, and search service when optional `web_search` reinforcement selects Zhipu.
+- Interactive setup does not ask for Zhipu by default.
 - Use `TAVILY_API_URL=https://<host>/api/tavily` for Tavily Hikari / pooled endpoints. Root host and `/mcp` inputs are normalized by setup; `/mcp` itself is not the REST base Smart Search should call.
 - `TAVILY_TIMEOUT_SECONDS` controls the Tavily `doctor` connectivity timeout and defaults to `30`. Raise it for slower pooled/community Tavily endpoints before judging the provider unhealthy.
 - Use `FIRECRAWL_API_URL` only for a Firecrawl-compatible REST base. Official default is `https://api.firecrawl.dev/v2`.
@@ -290,7 +294,6 @@ smart-search exa-search "query" --num-results 5 --search-type neural --include-t
 smart-search exa-similar "https://example.com/article" --num-results 5 --format json
 smart-search context7-library "react" "hooks" --format json
 smart-search context7-docs "/facebook/react" "useEffect cleanup" --format json
-smart-search zhipu-search "today China AI news" --count 5 --format json
 smart-search fetch "https://example.com" --format markdown --output page.md
 smart-search map "https://docs.example.com" --instructions "Find API reference pages" --max-depth 1 --max-breadth 20 --limit 50 --format json
 smart-search research "OpenAI Responses API web_search vs Chat Completions search" --budget deep --fallback auto --format json
@@ -298,7 +301,6 @@ smart-search rs "https://example.com/source" --fallback off --format markdown
 smart-search setup
 smart-search setup --lang en
 smart-search setup --advanced
-smart-search setup --non-interactive --zhipu-api-url "https://open.bigmodel.cn/api" --zhipu-search-engine "search_std"
 smart-search setup --non-interactive --openai-compatible-stream true
 smart-search setup --non-interactive --tavily-api-url "https://api.tavily.com" --tavily-key "key"
 smart-search --version
