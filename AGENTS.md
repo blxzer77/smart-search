@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This is the project-local instruction file for `D:\smartsearch-private`, a private deep-customization workspace derived from `konbakuyomu/smartsearch`.
+This is the project-local instruction file for `D:\MyHarness\smartsearch-private`, a private deep-customization workspace derived from `konbakuyomu/smartsearch`.
 
 This is not a fork/PR contribution workspace. Optimize for the user's private workflow and long-term maintainability, while preserving upstream license obligations.
 
@@ -23,6 +23,29 @@ This is not a fork/PR contribution workspace. Optimize for the user's private wo
 ## SmartSearch Private Workspace
 
 The current repository may still have `origin` pointing at `https://github.com/konbakuyomu/smartsearch.git` until the user configures a private remote. Do not treat that remote as a push target.
+
+## D:\MyHarness workspace (harness)
+
+**Purpose path:** `D:\MyHarness\smartsearch-private` (this git repo). The harness root `D:\MyHarness` is **not** a git repository. Open Cursor at `D:\MyHarness` when you need workspace-level Trellis tasks, spec, and journals.
+
+This package is one of **three independent git repositories** under the harness (there is **no** `.trellis/` directory inside this package):
+
+| Path | Role |
+| --- | --- |
+| `D:\MyHarness\.trellis\` | Trellis workflow, tasks, spec, workspace journals (harness only) |
+| `D:\MyHarness\smartsearch-private\` | **This repo** — smart-search Python package + npm wrapper |
+| `D:\MyHarness\Trellis\` | Trellis CLI source; published as `@blxzer/trellis` |
+| `D:\MyHarness\riverfjs-skills\` | Reusable agent skill directories |
+
+**Trellis CLI (contributors):** `npm install -g @blxzer/trellis`. Do not confuse this with smart-search npm install docs (e.g. `@konbakuyomu/smart-search@next` in `README.md`).
+
+Run **git** and **package tests** from **this directory**:
+
+- `.\.venv\Scripts\python.exe -m pytest tests -q`
+- `npm test`
+
+See `D:\MyHarness\AGENTS.md` for harness-wide structure and per-repo commands.
+
 <!-- TRELLIS:START -->
 # Trellis Instructions
 

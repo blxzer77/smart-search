@@ -84,6 +84,6 @@ Bundles the `smart-search-cli` skill (`src/smart_search/assets/skills/...` and `
 
 ## Workflow & conventions
 
-This repo is managed by **Trellis** (`.trellis/`). `.trellis/workflow.md` is the workflow source of truth (Plan → Execute → Finish, with a personal No-Task / Micro-Grill / Lite / Full mode ladder); `.trellis/spec/` holds layer-scoped guidelines; tasks live under `.trellis/tasks/` and are driven by `python ./.trellis/scripts/task.py`. Prefer `/trellis:*` commands when available.
+Development for this package is coordinated from the **D:\MyHarness** harness. Trellis state lives at **`D:\MyHarness\.trellis\`** (not under `smartsearch-private/`). Use `D:\MyHarness\.trellis\workflow.md` as the workflow source of truth (Plan → Execute → Finish, with a personal No-Task / Micro-Grill / Lite / Full mode ladder); layer guidelines are under `D:\MyHarness\.trellis\spec\`; tasks live under `D:\MyHarness\.trellis\tasks\`. From the harness root, context scripts run as `python ./.trellis/scripts/get_context.py` (and `--mode phase` when needed). Install the CLI with `npm install -g @blxzer/trellis`. Prefer `/trellis:*` commands when available.
 
-**Language policy** (from `AGENTS.md` and `.trellis/workflow.md`): user-facing replies in Simplified Chinese unless asked otherwise; tool prompts, search queries, command descriptions, and technical delegation in English. Preserve exact identifiers, paths, config keys, and provider names verbatim.
+**Language policy** (from `AGENTS.md` and the harness `workflow.md`): user-facing replies in Simplified Chinese unless asked otherwise; tool prompts, search queries, command descriptions, and technical delegation in English. Preserve exact identifiers, paths, config keys, and provider names verbatim.
