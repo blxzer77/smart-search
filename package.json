@@ -1,15 +1,15 @@
 {
-  "name": "@konbakuyomu/smart-search",
+  "name": "@blxzer77/smart-search",
   "version": "0.1.14",
   "description": "CLI-first bilingual web research with OpenAI-compatible search, Exa, Context7, Tavily, Firecrawl, and staged Deep Research execution.",
   "license": "MIT",
-  "homepage": "https://github.com/konbakuyomu/smartsearch#readme",
+  "homepage": "https://github.com/blxzer77/smart-search#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/konbakuyomu/smartsearch.git"
+    "url": "git+https://github.com/blxzer77/smart-search.git"
   },
   "bugs": {
-    "url": "https://github.com/konbakuyomu/smartsearch/issues"
+    "url": "https://github.com/blxzer77/smart-search/issues"
   },
   "bin": {
     "smart-search": "npm/bin/smart-search.js"

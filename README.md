@@ -1,16 +1,18 @@
 # smart-search
 
+> **Original Project**: This project is based on [konbakuyomu/smartsearch](https://github.com/konbakuyomu/smartsearch)
+
 [简体中文](README.zh-CN.md) | English
 
 CLI-first, skill-driven web research for AI agents and terminal users. `smart-search` gives AI tools one reproducible command layer for live search, source discovery, page fetching, site mapping, provider diagnostics, and live Deep Research execution.
 
 <p>
-  <a href="https://www.npmjs.com/package/@konbakuyomu/smart-search">
-    <img src="https://img.shields.io/npm/v/@konbakuyomu/smart-search?label=npm%20latest" alt="npm latest">
+  <a href="https://www.npmjs.com/package/@blxzer77/smart-search">
+    <img src="https://img.shields.io/npm/v/@blxzer77/smart-search?label=npm%20latest" alt="npm latest">
   </a>
 </p>
 
-![Star History Chart](https://api.star-history.com/svg?repos=konbakuyomu/smartsearch&type=Date)
+![Star History Chart](https://api.star-history.com/svg?repos=blxzer77/smart-search&type=Date)
 
 ## What It Is
 
@@ -36,7 +38,7 @@ Default `smart-search search` stays fast and live. `smart-search research` is th
 Stable channel:
 
 ```powershell
-npm install -g @konbakuyomu/smart-search@latest
+npm install -g @blxzer77/smart-search@latest
 smart-search --version
 smart-search setup
 ```
@@ -44,7 +46,7 @@ smart-search setup
 Test channel:
 
 ```powershell
-npm install -g @konbakuyomu/smart-search@next
+npm install -g @blxzer77/smart-search@next
 smart-search --version
 ```
 
