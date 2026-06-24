@@ -12,8 +12,6 @@
   </a>
 </p>
 
-![Star History Chart](https://api.star-history.com/svg?repos=blxzer77/smart-search&type=Date)
-
 ## 它到底是什么
 
 它不是 MCP Server，而是一个普通命令行工具。AI 工具通过 `smart-search-cli` skill 调它，脚本和终端用户也可以直接调它：
@@ -421,7 +419,7 @@ git push origin v0.1.14
 
 发布收尾检查：
 
-1. 先读 `npm view @konbakuyomu/smart-search versions --json`、`npm view @konbakuyomu/smart-search dist-tags --json`、`gh release list --repo konbakuyomu/smartsearch --limit 100`。
+1. 先读 `npm view @blxzer77/smart-search versions --json`、`npm view @blxzer77/smart-search dist-tags --json`、`gh release list --repo blxzer77/smart-search --limit 100`。
 2. beta 发布必须保持 `latest` 不动，只移动 `next` 或指定的非 latest tag。
 3. 遇到 npm `E409`，先查版本是否已经发布，再串行重跑对应版本。
 4. 最后安装指定版本并运行 `smart-search --version`、`smart-search doctor --format json`。

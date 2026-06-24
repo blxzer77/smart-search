@@ -12,8 +12,6 @@ CLI-first, skill-driven web research for AI agents and terminal users. `smart-se
   </a>
 </p>
 
-![Star History Chart](https://api.star-history.com/svg?repos=blxzer77/smart-search&type=Date)
-
 ## What It Is
 
 `smart-search` is not an MCP server. It is a normal CLI that AI agents can call through a skill:
@@ -403,11 +401,11 @@ Stable GitHub releases read optional body text from `.github/releases/vX.Y.Z.md`
 
 Release closeout checklist:
 
-1. Verify the registry and tags before changing anything: `npm view @konbakuyomu/smart-search versions --json`, `npm view @konbakuyomu/smart-search dist-tags --json`, and `gh release list --repo konbakuyomu/smartsearch --limit 100`.
+1. Verify the registry and tags before changing anything: `npm view @blxzer77/smart-search versions --json`, `npm view @blxzer77/smart-search dist-tags --json`, and `gh release list --repo blxzer77/smart-search --limit 100`.
 2. For historical beta backfill, publish the replacement `*-beta.N` package through Actions with `create_github_release=false` if the workflow token cannot create releases, then create the missing GitHub prerelease locally with `gh release create vX.Y.Z-beta.N --target <commit> --prerelease --latest=false`.
 3. Treat npm `E409` during parallel backfills as a registry concurrency failure, not a version-design failure. Re-run the affected version serially after checking whether the package already exists.
 4. Do a machine-readable gap check: expected beta versions minus npm versions must be empty, and expected `v*beta*` releases minus GitHub prereleases must be empty.
-5. Install the selected test build explicitly, for example `mise use -g "npm:@konbakuyomu/smart-search@0.1.10-beta.3" -y --pin`, then run `mise reshim`, `where.exe smart-search`, `smart-search --version`, `smart-search doctor --format json`, and a non-ASCII JSON pipe such as `smart-search search "深度搜索一下最近的比特币行情" --format json | ConvertFrom-Json`.
+5. Install the selected test build explicitly, for example `mise use -g "npm:@blxzer77/smart-search@0.1.1-beta.1" -y --pin`, then run `mise reshim`, `where.exe smart-search`, `smart-search --version`, `smart-search doctor --format json`, and a non-ASCII JSON pipe such as `smart-search search "深度搜索一下最近的比特币行情" --format json | ConvertFrom-Json`.
 
 ## License
 

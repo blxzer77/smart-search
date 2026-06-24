@@ -28,7 +28,7 @@ if (!fs.existsSync(pythonPath)) {
     console.error("smart-search npm wrapper could not find its Python runtime.");
     console.error(`Expected: ${pythonPath}`);
     console.error("Repair it by reinstalling the package:");
-    console.error("  npm install -g @konbakuyomu/smart-search@next");
+    console.error("  npm install -g @blxzer77/smart-search@latest");
     process.exit(repaired.status || 5);
   }
 }
