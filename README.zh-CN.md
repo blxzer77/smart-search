@@ -425,6 +425,10 @@ git push origin v0.1.14
 4. 最后安装指定版本并运行 `smart-search --version`、`smart-search doctor --format json`。
 5. Windows npm/mise 包装层额外跑中文 JSON 管道：`smart-search search "深度搜索一下最近的比特币行情" --format json | ConvertFrom-Json`。
 
+## Community
+
+[LINUX DO](https://linux.do)
+
 ## License
 
 MIT

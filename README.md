@@ -407,6 +407,10 @@ Release closeout checklist:
 4. Do a machine-readable gap check: expected beta versions minus npm versions must be empty, and expected `v*beta*` releases minus GitHub prereleases must be empty.
 5. Install the selected test build explicitly, for example `mise use -g "npm:@blxzer77/smart-search@0.1.1-beta.1" -y --pin`, then run `mise reshim`, `where.exe smart-search`, `smart-search --version`, `smart-search doctor --format json`, and a non-ASCII JSON pipe such as `smart-search search "深度搜索一下最近的比特币行情" --format json | ConvertFrom-Json`.
 
+## Community
+
+[LINUX DO](https://linux.do)
+
 ## License
 
 MIT
