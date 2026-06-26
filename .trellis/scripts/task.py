@@ -8,23 +8,37 @@ Usage:
     python task.py add-context <dir> <file> <path> [reason] # Add jsonl entry
     python task.py validate <dir>              # Validate jsonl files
     python task.py list-context <dir>          # List jsonl entries
-    python task.py start <dir>                 # Set active task
-    python task.py current [--source]          # Show active task
-    python task.py finish                      # Clear active task
+    python task.py dashboard                   # Show Task Dashboard
+    python task.py select <dir>                # Select task for this live session
+    python task.py selected [--source]         # Show selected task
+    python task.py start-execution <dir> --approved  # Start approved execution
+    python task.py record-gate <dir> --transition <key> --gate <gate> --result PASS|FAIL|SKIPPED --reviewer <id> --evidence <ref> [--root-cause <cause>]
+    python task.py exit                        # Clear selected task
     python task.py set-branch <dir> <branch>   # Set git branch
     python task.py set-base-branch <dir> <branch>  # Set PR target branch
     python task.py set-scope <dir> <scope>     # Set scope for PR title
-    python task.py archive <task-dir>          # Archive completed task
+    python task.py archive <task-dir> [--check] [--archive-integrated-children] # Check or archive completed task
+    python task.py prepare-archive-evidence <task-dir> [--dry-run]  # Draft missing verify.md archive evidence
+    python task.py prepare-learning-scaffold <task-dir> [--trigger <text>]  # Print spec-capture checklist (stdout only)
     python task.py list                        # List active tasks
     python task.py list-archive [month]        # List archived tasks
     python task.py add-subtask <parent-dir> <child-dir>     # Link child to parent
     python task.py remove-subtask <parent-dir> <child-dir>  # Unlink child from parent
+    python task.py prepare-child-worktree <parent-dir> <child-dir> --branch <branch>
+    python task.py set-child-state <parent-dir> <child-dir> <state> --evidence <ref>
+    python task.py integrate-child <parent-dir> <child-dir> <state> --evidence <ref>
+    python task.py generate-child-prompt <parent-dir> <child-dir> [--mode inline|subagent]
+    python task.py generate-dispatch-prompt <task-dir> <role> [--scope TEXT] [--finish] [--max-chars N]
+    python task.py parent-status <parent-dir>
+    python task.py review-child <parent-dir> <child-dir> [--check] [--decision accept|changes|cancel|integrate-through]
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
+from datetime import datetime, timezone
+from pathlib import Path
 
 from common.log import Colors, colored
 from common.paths import (
@@ -34,27 +48,53 @@ from common.paths import (
     get_repo_root,
     get_developer,
     get_tasks_dir,
-    get_current_task,
 )
 from common.active_task import (
-    clear_active_task,
-    resolve_active_task,
+    clear_selected_task,
     resolve_context_key,
-    set_active_task,
+    resolve_selected_task,
+    set_selected_task,
 )
 from common.io import read_json, write_json
+from common.task_dashboard import render_task_dashboard
+from common.cli_environment import optional_capability_note
+from common.task_gates import (
+    BASELINE_GATE,
+    build_reviewer_gate_record,
+    read_strategy_contract,
+    start_execution_repair_hints,
+    validate_start_execution,
+    validate_start_execution_check,
+    write_gate_record,
+)
 from common.task_utils import resolve_task_dir, run_task_hooks
-from common.tasks import iter_active_tasks, children_progress
+from common.tasks import (
+    children_progress,
+    format_child_task_display,
+    iter_active_tasks,
+    load_parent_child_integration_states,
+)
+from common.task_map import get_child_state
 
 # Import command handlers from split modules (also re-exports for plan.py compatibility)
 from common.task_store import (
     cmd_create,
     cmd_archive,
+    cmd_prepare_archive_evidence,
+    cmd_prepare_learning_scaffold,
     cmd_set_branch,
     cmd_set_base_branch,
     cmd_set_scope,
     cmd_add_subtask,
     cmd_remove_subtask,
+    cmd_prepare_child_worktree,
+    cmd_set_child_state,
+    cmd_integrate_child,
+    cmd_generate_child_prompt,
+    cmd_generate_dispatch_prompt,
+    cmd_suggest_execution_strategy,
+    cmd_parent_status,
+    cmd_review_child,
 )
 from common.task_context import (
     cmd_add_context,
@@ -64,120 +104,274 @@ from common.task_context import (
 
 
 # =============================================================================
-# Command: start / finish
+# Command: dashboard / select / selected / start-execution / record-gate / exit
 # =============================================================================
 
-def cmd_start(args: argparse.Namespace) -> int:
-    """Set active task."""
-    repo_root = get_repo_root()
-    task_input = args.dir
-
-    if not task_input:
-        print(colored("Error: task directory or name required", Colors.RED))
-        return 1
-
-    # Resolve task directory (supports task name, relative path, or absolute path)
-    full_path = resolve_task_dir(task_input, repo_root)
-
-    if not full_path.is_dir():
-        print(colored(f"Error: Task not found: {task_input}", Colors.RED))
-        print("Hint: Use task name (e.g., 'my-task') or full path (e.g., '.trellis/tasks/01-31-my-task')")
-        return 1
-
-    # Convert to relative path for storage
+def _repo_relative(path, repo_root) -> str:
     try:
-        task_dir = full_path.relative_to(repo_root).as_posix()
+        return path.relative_to(repo_root).as_posix()
     except ValueError:
-        task_dir = str(full_path)
-
-    task_json_path = full_path / FILE_TASK_JSON
-
-    if not resolve_context_key():
-        # Degraded mode: no session identity available.
-        # Hook didn't inject TRELLIS_CONTEXT_ID (common on Windows + Claude Code,
-        # --continue resume path, fork distribution, hooks disabled, etc.). Skip
-        # per-session pointer write; AI continues based on conversation context.
-        print(colored(
-            "ℹ Session identity not available; active-task pointer not persisted "
-            "this session (degraded mode). AI continues based on conversation context.",
-            Colors.YELLOW,
-        ))
-        print(colored(
-            "Hint: run inside an AI IDE/session that exposes session identity, "
-            "or set TRELLIS_CONTEXT_ID before running task.py start.",
-            Colors.YELLOW,
-        ))
-
-        # Still flip task.json status: planning → in_progress so downstream phases proceed.
-        if task_json_path.is_file():
-            data = read_json(task_json_path)
-            if data and data.get("status") == "planning":
-                data["status"] = "in_progress"
-                if write_json(task_json_path, data):
-                    print(colored("✓ Status: planning → in_progress (degraded)", Colors.GREEN))
-            run_task_hooks("after_start", task_json_path, repo_root)
-        return 0
-
-    active = set_active_task(task_dir, repo_root)
-    if active:
-        print(colored(f"✓ Current task set to: {task_dir}", Colors.GREEN))
-        print(f"Source: {active.source}")
-
-        if task_json_path.is_file():
-            data = read_json(task_json_path)
-            if data and data.get("status") == "planning":
-                data["status"] = "in_progress"
-                if write_json(task_json_path, data):
-                    print(colored("✓ Status: planning → in_progress", Colors.GREEN))
-
-        print()
-        print(colored("The hook will now inject context from this task's jsonl files.", Colors.BLUE))
-
-        run_task_hooks("after_start", task_json_path, repo_root)
-        return 0
-    else:
-        print(colored("Error: Failed to set current task", Colors.RED))
-        return 1
+        return str(path)
 
 
-def cmd_finish(args: argparse.Namespace) -> int:
-    """Clear active task."""
-    repo_root = get_repo_root()
-    active = clear_active_task(repo_root)
-    current = active.task_path
+def _print_select_dispatch_fallback_tip() -> None:
+    print(
+        "Tip: if no session identity, use "
+        "'python ./.trellis/scripts/generate_dispatch_prompt.py --task <path>' "
+        "to dispatch directly.",
+        file=sys.stderr,
+    )
 
-    if not current:
-        print(colored("No current task set", Colors.YELLOW))
-        return 0
 
-    # Resolve task.json path before clearing
-    task_json_path = repo_root / current / FILE_TASK_JSON
+def _resolve_existing_task(task_input: str, repo_root):
+    full_path = resolve_task_dir(task_input, repo_root)
+    if not full_path.is_dir():
+        print(colored(f"Error: Task not found: {task_input}", Colors.RED), file=sys.stderr)
+        print("Hint: Use task name (e.g., 'my-task') or full path (e.g., '.trellis/tasks/01-31-my-task')", file=sys.stderr)
+        return None
+    return full_path
 
-    print(colored(f"✓ Cleared current task (was: {current})", Colors.GREEN))
-    print(f"Source: {active.source}")
 
-    if task_json_path.is_file():
-        run_task_hooks("after_finish", task_json_path, repo_root)
+def cmd_dashboard(args: argparse.Namespace) -> int:
+    """Show Task Dashboard without mutating selection or status."""
+    _ = args
+    print(render_task_dashboard(get_repo_root()))
     return 0
 
 
-def cmd_current(args: argparse.Namespace) -> int:
-    """Show active task."""
+def cmd_select(args: argparse.Namespace) -> int:
+    """Select a task for this live session without changing task.status."""
     repo_root = get_repo_root()
-    active = resolve_active_task(repo_root)
+    task_input = args.dir
+    full_path = _resolve_existing_task(task_input, repo_root)
+    if full_path is None:
+        _print_select_dispatch_fallback_tip()
+        return 1
+
+    if not resolve_context_key():
+        print(
+            colored("Error: session identity not available; selected_task was not persisted.", Colors.RED),
+            file=sys.stderr,
+        )
+        print(
+            "Hint: run inside an AI session that exposes session identity, or set TRELLIS_CONTEXT_ID before running task.py select.",
+            file=sys.stderr,
+        )
+        _print_select_dispatch_fallback_tip()
+        return 1
+
+    selected = set_selected_task(_repo_relative(full_path, repo_root), repo_root)
+    if not selected:
+        print(colored("Error: failed to select task", Colors.RED), file=sys.stderr)
+        _print_select_dispatch_fallback_tip()
+        return 1
+
+    print(colored(f"✓ Selected task: {selected.task_path}", Colors.GREEN))
+    print(f"Source: {selected.source}")
+    print("Task status unchanged.")
+    return 0
+
+
+def _print_no_selected_task_guidance() -> None:
+    """Explain why no task is selected and what to run next."""
+    print(colored("No task selected for this live session.", Colors.YELLOW), file=sys.stderr)
+    print("Next actions:", file=sys.stderr)
+    print(
+        "  - Route work: python ./.trellis/scripts/task.py dashboard",
+        file=sys.stderr,
+    )
+    print(
+        "  - Select a task: python ./.trellis/scripts/task.py select <task-dir>",
+        file=sys.stderr,
+    )
+    print(
+        "  - List active tasks: python ./.trellis/scripts/task.py list",
+        file=sys.stderr,
+    )
+    print(
+        "  - Persist selection in shells: set TRELLIS_CONTEXT_ID (or use your platform session hook)",
+        file=sys.stderr,
+    )
+
+
+def cmd_selected(args: argparse.Namespace) -> int:
+    """Show selected task."""
+    repo_root = get_repo_root()
+    selected = resolve_selected_task(repo_root)
 
     if args.source:
-        print(f"Current task: {active.task_path or '(none)'}")
-        print(f"Source: {active.source}")
-        if active.stale:
+        print(f"Selected task: {selected.task_path or '(none)'}")
+        print(f"Source: {selected.source}")
+        if selected.stale:
             print("State: stale")
-        return 0 if active.task_path else 1
+        if not selected.task_path:
+            _print_no_selected_task_guidance()
+        return 0 if selected.task_path else 1
 
-    if active.task_path:
-        print(active.task_path)
+    if selected.task_path:
+        print(selected.task_path)
         return 0
 
+    _print_no_selected_task_guidance()
     return 1
+
+
+def cmd_exit(args: argparse.Namespace) -> int:
+    """Clear selected task for this live session without changing task.status."""
+    _ = args
+    repo_root = get_repo_root()
+    selected = clear_selected_task(repo_root)
+    if not selected.task_path:
+        print(colored("No selected task set", Colors.YELLOW))
+        return 0
+
+    print(colored(f"✓ Cleared selected task (was: {selected.task_path})", Colors.GREEN))
+    print(f"Source: {selected.source}")
+    print("Task status unchanged.")
+    return 0
+
+
+def _print_guard_errors(items: list[str], stream=None) -> None:
+    if stream is None:
+        stream = sys.stdout
+    for item in items:
+        print(f"  - {item}", file=stream)
+
+
+def cmd_start_execution(args: argparse.Namespace) -> int:
+    """Start approved task execution after a non-mutating readiness check."""
+    repo_root = get_repo_root()
+    task_dir = _resolve_existing_task(args.dir, repo_root)
+    if task_dir is None:
+        return 1
+
+    task_json_path = task_dir / FILE_TASK_JSON
+    task_data = read_json(task_json_path) if task_json_path.is_file() else None
+
+    if args.check:
+        guard = validate_start_execution_check(task_dir, task_data)
+        if not guard.ok:
+            print(colored("Start-execution check: FAIL", Colors.RED))
+            _print_guard_errors(guard.errors)
+            for hint in start_execution_repair_hints(guard.errors, task_dir):
+                print(f"  Hint: {hint}")
+            return 1
+        print(colored("Start-execution check: PASS", Colors.GREEN))
+        print(f"Contract fingerprint: {guard.contract_fingerprint}")
+        baseline_fingerprint = guard.artifact_fingerprints.get(BASELINE_GATE)
+        if baseline_fingerprint:
+            print(f"Artifact fingerprint: {baseline_fingerprint}")
+        if guard.required_gates:
+            print(f"Required reviewer gates: {', '.join(guard.required_gates)}")
+        if task_dir is not None:
+            contract, _ = read_strategy_contract(task_dir)
+            cap_note = optional_capability_note(contract.get("optional_capabilities"))
+            if cap_note:
+                print(colored(f"Note: {cap_note}", Colors.YELLOW))
+            from common.execution_strategy import (
+                contract_drift_warnings,
+                validate_strategy_pair,
+            )
+
+            if contract:
+                for item in contract_drift_warnings(
+                    repo_root, task_dir, task_data or {}, contract
+                ):
+                    print(f"[execution-strategy] WARN: {item}", file=sys.stderr)
+                mode = contract.get("execution_mode")
+                iso = contract.get("isolation")
+                if isinstance(mode, str) and isinstance(iso, str):
+                    for item in validate_strategy_pair(mode, iso):
+                        print(f"[execution-strategy] WARN: {item}", file=sys.stderr)
+        print("Artifact gates are ready. Ask the user for explicit execution approval before running `task.py start-execution <task> --approved`.")
+        return 0
+
+    if not args.approved:
+        print(colored("Error: no action selected for start-execution.", Colors.RED), file=sys.stderr)
+        print("Run with --check for non-mutating preflight or --approved after explicit user approval.", file=sys.stderr)
+        return 1
+
+    guard = validate_start_execution(task_dir, task_data, approved=True)
+    if not guard.ok:
+        print(colored("Error: cannot start execution; readiness check failed.", Colors.RED), file=sys.stderr)
+        _print_guard_errors(guard.errors, stream=sys.stderr)
+        return 1
+
+    assert task_data is not None
+    if guard.baseline_record:
+        write_gate_record(task_data, "start-execution", BASELINE_GATE, guard.baseline_record)
+    for gate, record in guard.auto_gate_records.items():
+        write_gate_record(task_data, "start-execution", gate, record)
+    task_data["execution_approval"] = {
+        "schema_version": 1,
+        "transition": "start-execution",
+        "approved_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "approved_by": "user",
+        "approval_source": "task.py start-execution --approved",
+        "contract_fingerprint": guard.contract_fingerprint,
+        "artifact_fingerprint": guard.artifact_fingerprints.get(BASELINE_GATE),
+    }
+    if task_data.get("status") == "planning":
+        task_data["status"] = "in_progress"
+    if not write_json(task_json_path, task_data):
+        print(colored("Error: failed to write task.json", Colors.RED), file=sys.stderr)
+        return 1
+
+    print(colored(f"✓ Execution approved for: {_repo_relative(task_dir, repo_root)}", Colors.GREEN))
+    print(f"Status: {task_data.get('status')}")
+    run_task_hooks("after_start", task_json_path, repo_root)
+    return 0
+
+
+def cmd_record_gate(args: argparse.Namespace) -> int:
+    """Record a non-baseline reviewer gate result."""
+    repo_root = get_repo_root()
+    task_dir = _resolve_existing_task(args.dir, repo_root)
+    if task_dir is None:
+        return 1
+
+    task_json_path = task_dir / FILE_TASK_JSON
+    task_data = read_json(task_json_path) if task_json_path.is_file() else None
+    if task_data is None:
+        print(colored("Error: task.json not found or invalid", Colors.RED), file=sys.stderr)
+        return 1
+
+    record, errors, warnings = build_reviewer_gate_record(
+        task_dir=task_dir,
+        task_data=task_data,
+        transition=args.transition,
+        gate=args.gate,
+        result=args.result,
+        reviewer=args.reviewer,
+        evidence=args.evidence,
+        issue_fingerprint=args.issue_fingerprint,
+        issue_summary=args.issue_summary,
+        root_cause=args.root_cause,
+        skip_approved_by=args.skip_approved_by,
+        skip_reason=args.skip_reason,
+        contract_fingerprint=args.contract_fingerprint,
+        artifact_fingerprint=args.artifact_fingerprint,
+    )
+    if errors:
+        print(colored("Error: cannot record quality gate.", Colors.RED), file=sys.stderr)
+        _print_guard_errors(errors, stream=sys.stderr)
+        return 1
+
+    assert record is not None
+    write_gate_record(task_data, args.transition, args.gate, record)
+    if not write_json(task_json_path, task_data):
+        print(colored("Error: failed to write task.json", Colors.RED), file=sys.stderr)
+        return 1
+
+    print(colored(f"✓ Recorded gate: {args.transition}/{args.gate} = {record['result']}", Colors.GREEN))
+    print(f"Evidence: {record['evidence']}")
+    print(f"Contract fingerprint: {record['contract_fingerprint']}")
+    print(f"Artifact fingerprint: {record['artifact_fingerprint']}")
+    if record.get("route"):
+        print(f"Route: {record['route']}")
+    for warning in warnings:
+        print(colored(f"Warning: {warning}", Colors.YELLOW), file=sys.stderr)
+    return 0
 
 
 # =============================================================================
@@ -188,7 +382,7 @@ def cmd_list(args: argparse.Namespace) -> int:
     """List active tasks."""
     repo_root = get_repo_root()
     tasks_dir = get_tasks_dir(repo_root)
-    current_task = get_current_task(repo_root)
+    selected_task = resolve_selected_task(repo_root).task_path
     developer = get_developer(repo_root)
     filter_mine = args.mine
     filter_status = args.status
@@ -209,7 +403,11 @@ def cmd_list(args: argparse.Namespace) -> int:
     # Display tasks hierarchically
     count = 0
 
-    def _print_task(dir_name: str, indent: int = 0) -> None:
+    def _print_task(
+        dir_name: str,
+        indent: int = 0,
+        parent_dir: Path | None = None,
+    ) -> None:
         nonlocal count
         t = all_tasks[dir_name]
 
@@ -223,11 +421,22 @@ def cmd_list(args: argparse.Namespace) -> int:
 
         relative_path = f"{DIR_WORKFLOW}/{DIR_TASKS}/{dir_name}"
         marker = ""
-        if relative_path == current_task:
-            marker = f" {colored('<- current', Colors.GREEN)}"
+        if relative_path == selected_task:
+            marker = f" {colored('<- selected', Colors.GREEN)}"
 
-        # Children progress
-        progress = children_progress(t.children, all_statuses)
+        integration_states = None
+        if t.children:
+            integration_states = load_parent_child_integration_states(
+                t.directory, t.children
+            )
+        progress = children_progress(
+            t.children, all_statuses, integration_states
+        )
+
+        integration_state = None
+        if parent_dir is not None:
+            integration_state = get_child_state(parent_dir, dir_name)
+        status_display = format_child_task_display(t.status, integration_state)
 
         # Package tag
         pkg_tag = f" @{t.package}" if t.package else ""
@@ -235,15 +444,20 @@ def cmd_list(args: argparse.Namespace) -> int:
         prefix = "  " * indent + "  - "
 
         if filter_mine:
-            print(f"{prefix}{dir_name}/ ({t.status}){pkg_tag}{progress}{marker}")
+            print(
+                f"{prefix}{dir_name}/ ({status_display}){pkg_tag}{progress}{marker}"
+            )
         else:
-            print(f"{prefix}{dir_name}/ ({t.status}){pkg_tag}{progress} [{colored(t.assignee or '-', Colors.CYAN)}]{marker}")
+            print(
+                f"{prefix}{dir_name}/ ({status_display}){pkg_tag}{progress} "
+                f"[{colored(t.assignee or '-', Colors.CYAN)}]{marker}"
+            )
         count += 1
 
         # Print children indented
         for child_name in t.children:
             if child_name in all_tasks:
-                _print_task(child_name, indent + 1)
+                _print_task(child_name, indent + 1, parent_dir=t.directory)
 
     # Display only top-level tasks (those without a parent)
     for dir_name in sorted(all_tasks.keys()):
@@ -310,15 +524,22 @@ Usage:
   python task.py add-context <dir> <jsonl> <path> [reason]  Add entry to jsonl
   python task.py validate <dir>                     Validate jsonl files
   python task.py list-context <dir>                 List jsonl entries
-  python task.py start <dir>                        Set active task
-  python task.py current [--source]                 Show active task
-  python task.py finish                             Clear active task
+  python task.py dashboard                          Show Task Dashboard
+  python task.py select <dir>                       Select task for this live session
+  python task.py selected [--source]                Show selected task
+  python task.py start-execution <dir> --check      Check execution readiness
+  python task.py start-execution <dir> --approved   Start approved execution
+  python task.py record-gate <dir> --transition <key> --gate <gate> --result PASS|FAIL|SKIPPED --reviewer <id> --evidence <ref> [--root-cause <cause>]
+  python task.py exit                               Clear selected task
   python task.py set-branch <dir> <branch>          Set git branch
   python task.py set-base-branch <dir> <branch>     Set PR target branch
   python task.py set-scope <dir> <scope>            Set scope for PR title
-  python task.py archive <task-dir>                 Archive completed task
+  python task.py archive <task-dir> [--check]       Check or archive completed task
   python task.py add-subtask <parent> <child>       Link child task to parent
   python task.py remove-subtask <parent> <child>    Unlink child from parent
+  python task.py prepare-child-worktree <parent> <child> --branch <branch>
+  python task.py set-child-state <parent> <child> <state> --evidence <ref>
+  python task.py integrate-child <parent> <child> <state> --evidence <ref>
   python task.py list [--mine] [--status <status>]  List tasks
   python task.py list-archive [YYYY-MM]             List archived tasks
 
@@ -335,12 +556,25 @@ Examples:
   python task.py create "Child task" --slug child --parent .trellis/tasks/01-21-parent
   python task.py add-context <dir> implement .trellis/spec/cli/backend/auth.md "Auth guidelines"
   python task.py set-branch <dir> task/add-login
-  python task.py start .trellis/tasks/01-21-add-login
-  python task.py current --source
-  python task.py finish
+  python task.py dashboard
+  python task.py select .trellis/tasks/01-21-add-login
+  python task.py selected --source
+  python task.py start-execution .trellis/tasks/01-21-add-login --check
+  python task.py start-execution .trellis/tasks/01-21-add-login --approved
+  python task.py record-gate .trellis/tasks/01-21-add-login --transition full-task-complete --gate code-review --result FAIL --reviewer codex --evidence verify.md --issue-fingerprint auth-branch-1 --root-cause implementation-defect
+  python task.py exit
+  python task.py archive add-login --check
   python task.py archive add-login
   python task.py add-subtask parent-task child-task  # Link existing tasks
   python task.py remove-subtask parent-task child-task
+  python task.py prepare-child-worktree parent-task child-task --branch child-task
+  python task.py set-child-state parent-task child-task review --evidence verify.md
+  python task.py integrate-child parent-task child-task accepted --evidence handoff.md --ref child-branch
+  python task.py integrate-child parent-task child-task integrated --evidence task-map.md --ref child-branch --execute-merge
+  python task.py generate-child-prompt parent-task child-task --mode inline
+  python task.py parent-status parent-task
+  python task.py review-child parent-task child-task --check
+  python task.py review-child parent-task child-task --decision accept --ref child-branch
   python task.py list                               # List all active tasks
   python task.py list --mine                        # List my tasks only
   python task.py list --mine --status in_progress   # List my in-progress tasks
@@ -414,17 +648,45 @@ def main() -> int:
     p_listctx = subparsers.add_parser("list-context", help="List context entries")
     p_listctx.add_argument("dir", help="Task directory")
 
-    # start
-    p_start = subparsers.add_parser("start", help="Set active task")
-    p_start.add_argument("dir", help="Task directory")
+    # dashboard
+    subparsers.add_parser("dashboard", help="Show Task Dashboard")
 
-    # current
-    p_current = subparsers.add_parser("current", help="Show active task")
-    p_current.add_argument("--source", action="store_true",
-                           help="Show active task source")
+    # select
+    p_select = subparsers.add_parser("select", help="Select task for this live session")
+    p_select.add_argument("dir", help="Task directory")
 
-    # finish
-    subparsers.add_parser("finish", help="Clear active task")
+    # selected
+    p_selected = subparsers.add_parser("selected", help="Show selected task")
+    p_selected.add_argument("--source", action="store_true",
+                            help="Show selected task source")
+
+    # start-execution
+    p_start_execution = subparsers.add_parser("start-execution", help="Start approved task execution")
+    p_start_execution.add_argument("dir", help="Task directory")
+    p_start_execution.add_argument("--check", action="store_true",
+                                   help="Run non-mutating execution readiness check")
+    p_start_execution.add_argument("--approved", action="store_true",
+                                   help="Record explicit approval and start execution")
+
+    # record-gate
+    p_record_gate = subparsers.add_parser("record-gate", help="Record reviewer quality gate")
+    p_record_gate.add_argument("dir", help="Task directory")
+    p_record_gate.add_argument("--transition", required=True, help="Transition key")
+    p_record_gate.add_argument("--gate", required=True, help="Gate name")
+    p_record_gate.add_argument("--result", required=True, help="PASS, FAIL, or SKIPPED")
+    p_record_gate.add_argument("--reviewer", required=True, help="Reviewer identifier")
+    p_record_gate.add_argument("--evidence", required=True, help="Short evidence reference")
+    p_record_gate.add_argument("--issue-fingerprint", help="Required for FAIL")
+    p_record_gate.add_argument("--issue-summary", help="Optional short issue summary for FAIL")
+    p_record_gate.add_argument("--root-cause",
+                               help="Required for FAIL: implementation-defect, contract-changing-defect, or validation-environment-blocker")
+    p_record_gate.add_argument("--skip-approved-by", help="Must be 'user' for SKIPPED")
+    p_record_gate.add_argument("--skip-reason", help="Required reason for SKIPPED")
+    p_record_gate.add_argument("--contract-fingerprint", help="Optional current contract fingerprint assertion")
+    p_record_gate.add_argument("--artifact-fingerprint", help="Optional current artifact fingerprint assertion")
+
+    # exit
+    subparsers.add_parser("exit", help="Clear selected task")
 
     # set-branch
     p_branch = subparsers.add_parser("set-branch", help="Set git branch")
@@ -444,7 +706,36 @@ def main() -> int:
     # archive
     p_archive = subparsers.add_parser("archive", help="Archive task")
     p_archive.add_argument("name", help="Task directory or name")
+    p_archive.add_argument("--check", action="store_true", help="Run non-mutating archive readiness check")
     p_archive.add_argument("--no-commit", action="store_true", help="Skip auto git commit after archive")
+    p_archive.add_argument(
+        "--archive-integrated-children",
+        action="store_true",
+        help="When archiving a parent, also archive integrated children that pass archive --check",
+    )
+
+    # prepare-archive-evidence
+    p_prepare_archive = subparsers.add_parser(
+        "prepare-archive-evidence",
+        help="Append missing archive evidence sections to verify.md",
+    )
+    p_prepare_archive.add_argument("name", help="Task directory or name")
+    p_prepare_archive.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be appended without writing verify.md",
+    )
+
+    # prepare-learning-scaffold
+    p_learning_scaffold = subparsers.add_parser(
+        "prepare-learning-scaffold",
+        help="Print durable-learning / spec-update checklist (does not edit specs)",
+    )
+    p_learning_scaffold.add_argument("name", help="Task directory or name")
+    p_learning_scaffold.add_argument(
+        "--trigger",
+        help="Optional reason (e.g. parent review changes, repeated workflow bug)",
+    )
 
     # list
     p_list = subparsers.add_parser("list", help="List tasks")
@@ -461,6 +752,120 @@ def main() -> int:
     p_rmsub.add_argument("parent_dir", help="Parent task directory")
     p_rmsub.add_argument("child_dir", help="Child task directory")
 
+    # prepare-child-worktree
+    p_prepare_worktree = subparsers.add_parser("prepare-child-worktree", help="Create/register a Child git worktree")
+    p_prepare_worktree.add_argument("parent_dir", help="Parent task directory")
+    p_prepare_worktree.add_argument("child_dir", help="Child task directory")
+    p_prepare_worktree.add_argument("--branch", required=True, help="Child git branch to create or checkout")
+    p_prepare_worktree.add_argument("--base", help="Base ref for a new Child branch")
+    p_prepare_worktree.add_argument("--path", help="Worktree path under .trellis/worktrees/")
+    p_prepare_worktree.add_argument("--check", action="store_true", help="Run non-mutating worktree readiness check")
+
+    # set-child-state
+    p_child_state = subparsers.add_parser("set-child-state", help="Set Child Worker state in Parent task-map.md")
+    p_child_state.add_argument("parent_dir", help="Parent task directory")
+    p_child_state.add_argument("child_dir", help="Child task directory")
+    p_child_state.add_argument("state", help="Child state")
+    p_child_state.add_argument("--evidence", required=True, help="Short evidence reference")
+    p_child_state.add_argument("--reason", help="Optional short reason")
+
+    # integrate-child
+    p_integrate_child = subparsers.add_parser("integrate-child", help="Set Parent-controlled Child integration state")
+    p_integrate_child.add_argument("parent_dir", help="Parent task directory")
+    p_integrate_child.add_argument("child_dir", help="Child task directory")
+    p_integrate_child.add_argument("state", help="Parent-controlled Child state")
+    p_integrate_child.add_argument("--evidence", required=True, help="Short evidence reference")
+    p_integrate_child.add_argument("--ref", help="Child git ref or reviewed diff reference")
+    p_integrate_child.add_argument("--reason", help="Optional short reason")
+    p_integrate_child.add_argument("--execute-merge", action="store_true", help="Execute git merge --no-ff --no-commit for an integrated Child")
+    p_integrate_child.add_argument("--check", action="store_true", help="Run non-mutating integration readiness check")
+
+    # suggest-execution-strategy
+    p_suggest_strategy = subparsers.add_parser(
+        "suggest-execution-strategy",
+        help="Suggest execution_mode and isolation for Development Strategy Contract",
+    )
+    p_suggest_strategy.add_argument("task_dir", help="Task directory")
+    p_suggest_strategy.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit machine-readable JSON",
+    )
+
+    # generate-dispatch-prompt
+    p_dispatch_prompt = subparsers.add_parser(
+        "generate-dispatch-prompt",
+        help="Build full Task dispatch prompt (Agent-facing)",
+    )
+    p_dispatch_prompt.add_argument("task_dir", help="Task directory")
+    p_dispatch_prompt.add_argument(
+        "role",
+        choices=["implement", "check", "research"],
+        help="Subagent role",
+    )
+    p_dispatch_prompt.add_argument("--scope", help="One-line task instruction for subagent")
+    p_dispatch_prompt.add_argument(
+        "--finish",
+        action="store_true",
+        help="Use finish check context (role=check only)",
+    )
+    p_dispatch_prompt.add_argument(
+        "--max-chars",
+        type=int,
+        help="Hard truncate embedded context block",
+    )
+
+    # generate-child-prompt
+    p_gen_prompt = subparsers.add_parser(
+        "generate-child-prompt",
+        help="Generate child implementation prompt for parent orchestration",
+    )
+    p_gen_prompt.add_argument("parent_dir", help="Parent task directory")
+    p_gen_prompt.add_argument("child_dir", help="Child task directory")
+    p_gen_prompt.add_argument(
+        "--mode",
+        choices=["inline", "subagent"],
+        default="inline",
+        help="Delivery mode hint (inline manual handoff vs optional subagent)",
+    )
+    p_gen_prompt.add_argument(
+        "--include-artifacts",
+        action="store_true",
+        help="Embed child artifact bodies in the generated prompt",
+    )
+    p_gen_prompt.add_argument("--output", "-o", help="Write prompt to file instead of stdout")
+
+    # parent-status
+    p_parent_status = subparsers.add_parser("parent-status", help="Show parent task-map orchestration status")
+    p_parent_status.add_argument("parent_dir", help="Parent task directory")
+
+    # review-child
+    p_review_child = subparsers.add_parser(
+        "review-child",
+        help="Review child handoff and optionally advance integration states",
+    )
+    p_review_child.add_argument("parent_dir", help="Parent task directory")
+    p_review_child.add_argument("child_dir", help="Child task directory")
+    p_review_child.add_argument("--check", action="store_true", help="Non-mutating review readiness check")
+    p_review_child.add_argument(
+        "--decision",
+        choices=["accept", "changes", "cancel", "integrate-through"],
+        help="Parent review decision (runs integrate-child steps when valid)",
+    )
+    p_review_child.add_argument("--ref", help="Child git ref for accept / integrate-through")
+    p_review_child.add_argument("--reason", help="Required for changes or cancel decisions")
+    p_review_child.add_argument("--notes", help="Short parent review notes included in the report")
+    p_review_child.add_argument(
+        "--write-artifact",
+        action="store_true",
+        help="Also write review-<child>.md under the parent task directory",
+    )
+    p_review_child.add_argument(
+        "--no-append-parent-verify",
+        action="store_true",
+        help="Do not append review notes to parent verify.md",
+    )
+
     # list-archive
     p_listarch = subparsers.add_parser("list-archive", help="List archived tasks")
     p_listarch.add_argument("month", nargs="?", help="Month (YYYY-MM)")
@@ -476,15 +881,28 @@ def main() -> int:
         "add-context": cmd_add_context,
         "validate": cmd_validate,
         "list-context": cmd_list_context,
-        "start": cmd_start,
-        "current": cmd_current,
-        "finish": cmd_finish,
+        "dashboard": cmd_dashboard,
+        "select": cmd_select,
+        "selected": cmd_selected,
+        "start-execution": cmd_start_execution,
+        "record-gate": cmd_record_gate,
+        "exit": cmd_exit,
         "set-branch": cmd_set_branch,
         "set-base-branch": cmd_set_base_branch,
         "set-scope": cmd_set_scope,
         "archive": cmd_archive,
+        "prepare-archive-evidence": cmd_prepare_archive_evidence,
+        "prepare-learning-scaffold": cmd_prepare_learning_scaffold,
         "add-subtask": cmd_add_subtask,
         "remove-subtask": cmd_remove_subtask,
+        "prepare-child-worktree": cmd_prepare_child_worktree,
+        "set-child-state": cmd_set_child_state,
+        "integrate-child": cmd_integrate_child,
+        "generate-child-prompt": cmd_generate_child_prompt,
+        "generate-dispatch-prompt": cmd_generate_dispatch_prompt,
+        "suggest-execution-strategy": cmd_suggest_execution_strategy,
+        "parent-status": cmd_parent_status,
+        "review-child": cmd_review_child,
         "list": cmd_list,
         "list-archive": cmd_list_archive,
     }

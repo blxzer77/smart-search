@@ -31,7 +31,6 @@ max_journal_lines: 2000
 # Accepts: true / false / yes / no / 1 / 0 / on / off (case-insensitive).
 #
 # session_auto_commit: true
-session_auto_commit: false
 
 #-------------------------------------------------------------------------------
 # Task Lifecycle Hooks
@@ -78,6 +77,28 @@ session_auto_commit: false
 # default_package: frontend
 
 #-------------------------------------------------------------------------------
+# Smart Search CLI (optional per-machine override)
+#-------------------------------------------------------------------------------
+# run_smart_search.py resolves: env TRELLIS_SMART_SEARCH_COMMAND, then this
+# setting, then PATH, then node_modules/.bin and repo wrappers. No .runtime cache.
+#
+# smart_search:
+#   command: smart-search
+
+#-------------------------------------------------------------------------------
+# Cursor subagent dispatch (documentation only — not Cursor product settings)
+#-------------------------------------------------------------------------------
+# See .trellis/spec/guides/cursor-subagent-policy.md
+#
+# cursor:
+#   subagent_dispatch:
+#     mode: agent
+#     model_policy: cursor-configured
+#   child_worker:
+#     mode: separate_writable_agent_session
+#     reuse_policy: true
+
+#-------------------------------------------------------------------------------
 # Channel worker OOM guard
 #-------------------------------------------------------------------------------
 # Default safeguards for `trellis channel spawn` workers. The guard runs
@@ -107,6 +128,5 @@ channel:
 # (main agent spawns trellis-implement / trellis-check / trellis-research
 # sub-agents).
 #
-codex:
-  dispatch_mode: inline  # Personal workflow: main Codex session implements/checks directly.
-
+# codex:
+#   dispatch_mode: inline  # or "sub-agent" to dispatch trellis-* sub-agents

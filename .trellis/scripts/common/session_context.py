@@ -24,6 +24,7 @@ from .config import get_git_packages
 from .git import run_git
 from .packages_context import get_packages_section
 from .tasks import iter_active_tasks, load_task, get_all_statuses, children_progress
+from .task_dashboard import render_task_dashboard
 from .paths import (
     DIR_SCRIPTS,
     DIR_SPEC,
@@ -32,8 +33,8 @@ from .paths import (
     DIR_WORKSPACE,
     count_lines,
     get_active_journal_file,
-    get_current_task,
-    get_current_task_source,
+    get_selected_task,
+    get_selected_task_source,
     get_developer,
     get_repo_root,
     get_tasks_dir,
@@ -44,7 +45,8 @@ from .paths import (
 # Helpers
 # =============================================================================
 
-_PACKAGE_NAME = "@mindfoldhq/trellis"
+_PACKAGE_NAME = "@blxzer/cursor-trellis"
+_PYTHON_CMD = "python"
 _UPDATE_CHECK_TIMEOUT_SECONDS = 1.0
 _VERSION_RE = re.compile(
     r"^\s*(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:-([0-9A-Za-z.-]+))?\s*$"
@@ -416,6 +418,334 @@ def _get_update_hint(repo_root: Path) -> str | None:
     )
 
 
+def _quote_command_value(value: str) -> str:
+    return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _artifact_search_command(query: str = "<topic>") -> str:
+    return (
+        f"{_PYTHON_CMD} ./{DIR_WORKFLOW}/{DIR_SCRIPTS}/search_artifacts.py "
+        f'--query "{_quote_command_value(query)}" --json'
+    )
+
+
+def _session_memory_command(query: str = "<topic>") -> str:
+    return (
+        f"{_PYTHON_CMD} ./{DIR_WORKFLOW}/{DIR_SCRIPTS}/search_memory.py "
+        f'--query "{_quote_command_value(query)}" --json'
+    )
+
+
+def _smart_search_evidence_command(question: str = "<question>") -> str:
+    return (
+        f"{_PYTHON_CMD} ./{DIR_WORKFLOW}/{DIR_SCRIPTS}/run_smart_search.py "
+        f'"{_quote_command_value(question)}" --intent deep-research --json'
+    )
+
+
+def _query_tokens(*values: object) -> list[str]:
+    tokens: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        if not value:
+            continue
+        for raw_token in re.findall(r"[\w.-]+", str(value)):
+            token = raw_token.strip("._-")
+            if not token:
+                continue
+            key = token.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            tokens.append(token)
+            if len(tokens) >= 8:
+                return tokens
+    return tokens
+
+
+def _selected_task_query(selected_task: str, task_info: object | None) -> str:
+    if task_info:
+        tokens = _query_tokens(
+            getattr(task_info, "title", ""),
+            getattr(task_info, "name", ""),
+            getattr(task_info, "package", ""),
+            getattr(task_info, "description", ""),
+        )
+    else:
+        tokens = _query_tokens(Path(selected_task).name)
+    return " ".join(tokens) if tokens else selected_task
+
+
+def _recommendation(
+    source: str,
+    priority: int,
+    confidence: str,
+    reason: str,
+    action: str,
+    reference: str,
+) -> dict[str, object]:
+    return {
+        "source": source,
+        "priority": priority,
+        "confidence": confidence,
+        "reason": reason,
+        "action": action,
+        "reference": reference,
+    }
+
+
+def _resolve_selected_task_dir(repo_root: Path, selected_task: str) -> Path:
+    task_path = Path(selected_task)
+    if task_path.is_absolute():
+        return task_path
+    return repo_root / task_path
+
+
+def _selected_task_artifacts(
+    repo_root: Path,
+    selected_task: str | None,
+) -> dict[str, object] | None:
+    if not selected_task:
+        return None
+
+    task_dir = _resolve_selected_task_dir(repo_root, selected_task)
+    research_dir = task_dir / "research"
+    research_count = 0
+    if research_dir.is_dir():
+        research_count = len([p for p in research_dir.glob("*.md") if p.is_file()])
+
+    return {
+        "taskPath": selected_task,
+        "prd": (task_dir / "prd.md").is_file(),
+        "design": (task_dir / "design.md").is_file(),
+        "implement": (task_dir / "implement.md").is_file(),
+        "research": research_dir.is_dir(),
+        "researchCount": research_count,
+        "verify": (task_dir / "verify.md").is_file(),
+    }
+
+
+def _get_retrieval_guide(
+    repo_root: Path,
+    selected_task: str | None,
+) -> dict[str, object]:
+    guide: dict[str, object] = {
+        "artifactSearch": {
+            "command": _artifact_search_command(),
+            "purpose": (
+                "Find durable Trellis specs, tasks, research, verification "
+                "notes, and workspace journals."
+            ),
+        },
+        "sessionMemory": {
+            "command": _session_memory_command(),
+            "purpose": (
+                "Find reusable session history, prior decisions, and recent "
+                "work context from local workspace journals."
+            ),
+        },
+        "smartSearchEvidence": {
+            "command": _smart_search_evidence_command(),
+            "purpose": (
+                "Explicitly run Smart Search and save a task-local evidence "
+                "manifest for source-backed research."
+            ),
+        },
+        "codebaseEvidence": (
+            "Treat adapter output as candidate evidence until current source, "
+            "Git, or validation confirms it."
+        ),
+        "evidenceSinks": {
+            "exploratory": "selected task research/*.md",
+            "final": "selected task verify.md",
+        },
+    }
+    selected_artifacts = _selected_task_artifacts(repo_root, selected_task)
+    if selected_artifacts is not None:
+        guide["selectedTaskArtifacts"] = selected_artifacts
+    guide["recommendations"] = _get_retrieval_recommendations(
+        repo_root,
+        selected_task,
+        selected_artifacts,
+    )
+    return guide
+
+
+def _get_retrieval_recommendations(
+    repo_root: Path,
+    selected_task: str | None,
+    selected_artifacts: dict[str, object] | None = None,
+) -> list[dict[str, object]]:
+    if not selected_task:
+        return []
+
+    task_dir = _resolve_selected_task_dir(repo_root, selected_task)
+    task_info = load_task(task_dir)
+    artifacts = (
+        selected_artifacts
+        or _selected_task_artifacts(repo_root, selected_task)
+        or {}
+    )
+    query = _selected_task_query(selected_task, task_info)
+    recommendations: list[dict[str, object]] = []
+
+    has_local_artifacts = any(
+        bool(artifacts.get(key))
+        for key in ("prd", "design", "implement", "research", "verify")
+    )
+    if has_local_artifacts:
+        recommendations.append(
+            _recommendation(
+                "task-artifacts",
+                100,
+                "high",
+                "Selected task has local planning or evidence artifacts; read them first.",
+                "Read selected task prd.md, design.md, implement.md, research/*.md, and verify.md as present.",
+                selected_task,
+            )
+        )
+
+    recommendations.extend(
+        [
+            _recommendation(
+                "artifact-search",
+                90,
+                "high",
+                "Search durable Trellis specs, tasks, research, and verification notes for related context.",
+                _artifact_search_command(query),
+                selected_task,
+            ),
+            _recommendation(
+                "session-memory",
+                80,
+                "medium",
+                "Search local session history for prior decisions and recent related work.",
+                _session_memory_command(query),
+                f"{DIR_WORKFLOW}/{DIR_WORKSPACE}/",
+            ),
+        ]
+    )
+
+    if bool(artifacts.get("research")):
+        smart_priority = 55
+        smart_confidence = "low"
+        smart_reason = (
+            "Research artifacts already exist; run Smart Search only for current external source gaps."
+        )
+    else:
+        smart_priority = 70
+        smart_confidence = "medium"
+        smart_reason = (
+            "No selected-task research artifacts are present; capture explicit external evidence when needed."
+        )
+
+    recommendations.extend(
+        [
+            _recommendation(
+                "smart-search",
+                smart_priority,
+                smart_confidence,
+                smart_reason,
+                _smart_search_evidence_command(query),
+                f"{selected_task}/research/smart-search/",
+            ),
+            _recommendation(
+                "codebase-evidence",
+                60,
+                "medium",
+                "Confirm candidate codebase evidence against current source, Git state, or validation.",
+                "Inspect current source and run focused validation before treating codebase retrieval as proof.",
+                "current source tree",
+            ),
+        ]
+    )
+
+    recommendations.sort(
+        key=lambda item: (-int(item["priority"]), str(item["source"]))
+    )
+    return recommendations
+
+
+def _present_missing(value: object) -> str:
+    return "present" if bool(value) else "missing"
+
+
+def _append_retrieval_recommendations(
+    lines: list[str],
+    recommendations: list[dict[str, object]],
+) -> None:
+    if not recommendations:
+        return
+    lines.append("Retrieval recommendations:")
+    for index, recommendation in enumerate(recommendations, start=1):
+        source = recommendation.get("source", "")
+        confidence = recommendation.get("confidence", "")
+        priority = recommendation.get("priority", "")
+        reason = recommendation.get("reason", "")
+        lines.append(f"{index}. {source} [{confidence}] priority {priority}: {reason}")
+        lines.append(f"   Action: {recommendation.get('action', '')}")
+        lines.append(f"   Reference: {recommendation.get('reference', '')}")
+
+
+def _append_retrieval_guide(
+    lines: list[str],
+    repo_root: Path,
+    selected_task: str | None,
+) -> None:
+    lines.append("## RETRIEVAL GUIDE")
+    lines.append(f"Artifact search: {_artifact_search_command()}")
+    lines.append(f"Session memory: {_session_memory_command()}")
+    lines.append(f"Smart Search evidence: {_smart_search_evidence_command()}")
+    lines.append(
+        "Use artifact search for durable Trellis specs, tasks, research, "
+        "verification notes, and workspace journals."
+    )
+    lines.append(
+        "Use session memory for reusable prior decisions and recent work "
+        "recorded in local workspace journals."
+    )
+    lines.append(
+        "Run Smart Search evidence only when external/current source evidence is "
+        "needed; it writes a task-local manifest under research/smart-search/."
+    )
+    lines.append(
+        "Codebase evidence: adapter output is candidate evidence until current "
+        "source, Git, or validation confirms it."
+    )
+
+    if selected_task:
+        lines.append(
+            f"Evidence sinks: {selected_task}/research/*.md for exploratory "
+            f"chains; {selected_task}/verify.md for final proof."
+        )
+        artifacts = _selected_task_artifacts(repo_root, selected_task)
+        if artifacts:
+            research_count = int(artifacts.get("researchCount", 0))
+            research_state = (
+                f"{research_count} markdown file(s)"
+                if research_count
+                else _present_missing(artifacts.get("research"))
+            )
+            lines.append("Selected-task artifacts:")
+            lines.append(f"- prd.md: {_present_missing(artifacts.get('prd'))}")
+            lines.append(f"- design.md: {_present_missing(artifacts.get('design'))}")
+            lines.append(
+                f"- implement.md: {_present_missing(artifacts.get('implement'))}"
+            )
+            lines.append(f"- research/: {research_state}")
+            lines.append(f"- verify.md: {_present_missing(artifacts.get('verify'))}")
+        _append_retrieval_recommendations(
+            lines,
+            _get_retrieval_recommendations(repo_root, selected_task, artifacts),
+        )
+    else:
+        lines.append(
+            "Evidence sinks: task research/*.md for exploratory chains; task "
+            "verify.md for final proof."
+        )
+    lines.append("")
+
+
 # =============================================================================
 # JSON Output
 # =============================================================================
@@ -463,6 +793,7 @@ def get_context_json(repo_root: Path | None = None) -> dict:
         repo_root,
         discover_unconfigured=not root_git_info["isRepo"],
     )
+    selected_task = get_selected_task(repo_root)
 
     result = {
         "developer": developer or "",
@@ -482,6 +813,7 @@ def get_context_json(repo_root: Path | None = None) -> dict:
             "lines": journal_lines,
             "nearLimit": journal_lines > 1800,
         },
+        "retrievalGuide": _get_retrieval_guide(repo_root, selected_task),
     }
 
     if pkg_git_info:
@@ -547,18 +879,18 @@ def get_context_text(repo_root: Path | None = None) -> str:
         ),
     )
 
-    # Current task
-    lines.append("## CURRENT TASK")
-    current_task = get_current_task(repo_root)
-    if current_task:
-        current_task_dir = repo_root / current_task
-        source_type, context_key, _ = get_current_task_source(repo_root)
-        lines.append(f"Path: {current_task}")
+    # Selected task
+    lines.append("## SELECTED TASK")
+    selected_task = get_selected_task(repo_root)
+    if selected_task:
+        selected_task_dir = repo_root / selected_task
+        source_type, context_key, _ = get_selected_task_source(repo_root)
+        lines.append(f"Path: {selected_task}")
         lines.append(
             f"Source: {source_type}" + (f":{context_key}" if context_key else "")
         )
 
-        ct = load_task(current_task_dir)
+        ct = load_task(selected_task_dir)
         if ct:
             lines.append(f"Name: {ct.name}")
             lines.append(f"Status: {ct.status}")
@@ -567,12 +899,18 @@ def get_context_text(repo_root: Path | None = None) -> str:
                 lines.append(f"Description: {ct.description}")
 
         # Check for prd.md
-        prd_file = current_task_dir / "prd.md"
+        prd_file = selected_task_dir / "prd.md"
         if prd_file.is_file():
             lines.append("")
             lines.append("[!] This task has prd.md - read it for task details")
     else:
         lines.append("(none)")
+    lines.append("")
+
+    _append_retrieval_guide(lines, repo_root, selected_task)
+
+    lines.append("## TASK DASHBOARD")
+    lines.extend(render_task_dashboard(repo_root).splitlines())
     lines.append("")
 
     # Active tasks
@@ -657,7 +995,7 @@ def get_context_text(repo_root: Path | None = None) -> str:
 def get_context_record_json(repo_root: Path | None = None) -> dict:
     """Get record-mode context as a dictionary.
 
-    Focused on: my active tasks, git status, current task.
+    Focused on: my active tasks, git status, selected task.
     """
     if repo_root is None:
         repo_root = get_repo_root()
@@ -689,15 +1027,15 @@ def get_context_record_json(repo_root: Path | None = None) -> dict:
                 "meta": t.meta,
             })
 
-    # Current task
-    current_task_info = None
-    current_task = get_current_task(repo_root)
-    if current_task:
-        source_type, context_key, _ = get_current_task_source(repo_root)
-        ct = load_task(repo_root / current_task)
+    # Selected task
+    selected_task_info = None
+    selected_task = get_selected_task(repo_root)
+    if selected_task:
+        source_type, context_key, _ = get_selected_task_source(repo_root)
+        ct = load_task(repo_root / selected_task)
         if ct:
-            current_task_info = {
-                "path": current_task,
+            selected_task_info = {
+                "path": selected_task,
                 "name": ct.name,
                 "status": ct.status,
                 "source": source_type,
@@ -720,7 +1058,7 @@ def get_context_record_json(repo_root: Path | None = None) -> dict:
             "recentCommits": root_git_info["recentCommits"],
         },
         "myTasks": my_tasks,
-        "currentTask": current_task_info,
+        "selectedTask": selected_task_info,
     }
 
     if pkg_git_info:
@@ -733,7 +1071,7 @@ def get_context_text_record(repo_root: Path | None = None) -> str:
     """Get context as formatted text for record-session mode.
 
     Focused output: MY ACTIVE TASKS first (with [!!!] emphasis),
-    then GIT STATUS, RECENT COMMITS, CURRENT TASK.
+    then GIT STATUS, RECENT COMMITS, SELECTED TASK.
     """
     if repo_root is None:
         repo_root = get_repo_root()
@@ -784,16 +1122,16 @@ def get_context_text_record(repo_root: Path | None = None) -> str:
         ),
     )
 
-    # CURRENT TASK
-    lines.append("## CURRENT TASK")
-    current_task = get_current_task(repo_root)
-    if current_task:
-        source_type, context_key, _ = get_current_task_source(repo_root)
-        lines.append(f"Path: {current_task}")
+    # SELECTED TASK
+    lines.append("## SELECTED TASK")
+    selected_task = get_selected_task(repo_root)
+    if selected_task:
+        source_type, context_key, _ = get_selected_task_source(repo_root)
+        lines.append(f"Path: {selected_task}")
         lines.append(
             f"Source: {source_type}" + (f":{context_key}" if context_key else "")
         )
-        ct = load_task(repo_root / current_task)
+        ct = load_task(repo_root / selected_task)
         if ct:
             lines.append(f"Name: {ct.name}")
             lines.append(f"Status: {ct.status}")

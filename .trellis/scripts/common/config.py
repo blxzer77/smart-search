@@ -243,6 +243,19 @@ def get_session_auto_commit(repo_root: Path | None = None) -> bool:
     return DEFAULT_SESSION_AUTO_COMMIT
 
 
+def get_smart_search_command_config(repo_root: Path | None = None) -> str | None:
+    """Optional executable name or path from ``smart_search.command`` in config."""
+    config = _load_config(repo_root)
+    block = config.get("smart_search")
+    if not isinstance(block, dict):
+        return None
+    raw = block.get("command")
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    return text or None
+
+
 def get_hooks(event: str, repo_root: Path | None = None) -> list[str]:
     """Get hook commands for a lifecycle event.
 
@@ -276,7 +289,7 @@ def get_packages(repo_root: Path | None = None) -> dict[str, dict] | None:
         or None if not configured (single-repo mode).
 
     Example return:
-        {"cli": {"path": "packages/cli"}, "docs-site": {"path": "docs-site", "type": "submodule"}}
+        {"api": {"path": "packages/api"}, "web": {"path": "packages/web"}}
     """
     config = _load_config(repo_root)
     packages = config.get("packages")
@@ -427,7 +440,7 @@ def get_spec_scope(repo_root: Path | None = None) -> list[str] | str | None:
 
     Returns:
         list[str]: Package names to include in spec scanning.
-        str: "active_task" to use current task's package.
+        str: "active_task" to use the selected task's package.
         None: No scope configured (scan all packages).
     """
     config = _load_config(repo_root)
