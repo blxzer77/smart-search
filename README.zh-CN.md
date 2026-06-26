@@ -136,8 +136,22 @@ smart-search search "React useEffect cleanup 文档" --format json
 
 ```powershell
 smart-search research "OpenAI Responses API web_search 和 Chat Completions 联网搜索怎么选" --budget deep --fallback auto --format json
+smart-search research "query" --locale-scope cn --budget quick --format json
+smart-search research "query" --dry-run --format json
+smart-search research "query" --progress --format markdown
 smart-search rs "https://example.com/source" --fallback off --format markdown
 ```
+
+`research` 常用参数：
+
+| 参数 | 取值 | 作用 |
+| --- | --- | --- |
+| `--budget` | `quick`、`standard`、`deep`（默认） | 控制拆解深度与候选 URL 抓取上限（`quick=3`、`standard=5`、`deep=6`） |
+| `--locale-scope` | `cn`、`en`、`both`（默认） | 双语网页发现范围；设为 `cn` 或 `en` 可降低重复搜索成本 |
+| `--dry-run` | 开关 | 仅输出计划与路由预览，不调用 live provider |
+| `--progress` | 开关 | 向 stderr 输出 `[research]` 阶段日志（`--dry-run` 时自动静默） |
+| `--fallback` | `auto`（默认）、`off` | 各阶段内的同能力 provider 兜底 |
+| `--evidence-dir` | 路径 | 覆盖默认证据产物目录 |
 
 `research` 会先在内部生成 Deep Research 计划，再执行 plan -> discover -> fetch/read -> gap check -> evidence-only synthesis。规划阶段会产出：
 
@@ -160,7 +174,7 @@ search, exa-search, exa-similar, context7-library, context7-docs, fetch, map
 
 默认 `--fallback auto`，会在同一 capability 内兜底；`--fallback off` 只尝试每个 capability 选中的第一个 provider，适合手动调试某个 provider。
 
-`research` JSON 会包含 `final_answer`、`citations`、`evidence_items`、`gap_check`、`provider_attempts`、`fallback_used`、`degraded`、`route_policy_version` 和 `evidence_dir`。发现阶段的 snippet 只是候选，不会直接变成 citation；只有 fetch/read 到正文的来源才会被引用。兜底仍然补不齐证据时，`research` 会降级输出 gap，不会编造结论。
+`research` JSON 会包含 `final_answer`、`citations`、`evidence_items`、`gap_check`、`provider_attempts`、`fallback_used`、`degraded`、`route_policy_version`、`evidence_dir` 和 `output_schema_version`（当前为 `1`）。`citations` 为结构化对象，含 `id`、`source_type`、`subquestion_id`、`verified`、`content_len`。`provider_attempts` 与 `stage_results` 在命中 provider TTL 缓存时可能带 `cache_hit`。发现阶段的 snippet 只是候选，不会直接变成 citation；只有 fetch/read 到正文的来源才会被引用。兜底仍然补不齐证据时，`research` 会降级输出 gap，不会编造结论。
 
 `research` 的路由是 capability-first 加 provider 优势：
 
@@ -273,6 +287,7 @@ smart-search setup --non-interactive `
 | `SMART_SEARCH_FALLBACK_MODE` | `auto` 或 `off` |
 | `SMART_SEARCH_RESEARCH_PREFERRED_PROVIDERS` | `research` 路由优先 provider CSV，只能在同 capability 内调整顺序 |
 | `SMART_SEARCH_RESEARCH_DISABLED_PROVIDERS` | `research` 禁用 provider CSV，不能改变 provider capability 边界 |
+| `SMART_SEARCH_CACHE` | `research` 进程内 provider TTL 缓存（默认 `on`；设 `off` 关闭）。分级：`web_fetch` 7 天、`docs_search` 1 小时、`web_search` 10 分钟；时效性 query 跳过 `web_search`/`docs_search` 缓存；`main_search` 永不缓存 |
 | `SMART_SEARCH_CONFIG_DIR` | 指定本机配置和日志根目录 |
 | `SMART_SEARCH_EVIDENCE_DIR` | 指定 `research` 默认证据根目录 |
 
@@ -290,6 +305,7 @@ smart-search setup --non-interactive `
 | `context7-library` | `c7`、`ctx7` | 查 Context7 库候选 |
 | `context7-docs` | `c7d`、`c7docs`、`ctx7-docs` | 抓 Context7 文档 |
 | `doctor` | `d` | 配置和连通性检查 |
+| `diagnose` | `diag` | OpenAI-compatible 专项排障报告 |
 | `setup` | `init` | 配置向导 |
 | `config` | `cfg` | 本机配置读写 |
 
@@ -308,6 +324,7 @@ smart-search exa-similar "https://example.com/source" --num-results 5 --format j
 smart-search fetch "https://example.com/source" --format markdown --output page.md
 smart-search map "https://docs.example.com" --instructions "Find API reference pages" --max-depth 1 --limit 50 --format json
 smart-search doctor --format markdown
+smart-search diagnose openai-compatible --format markdown
 ```
 
 ## 输出和证据策略
@@ -389,10 +406,33 @@ smart-search search "深度搜索一下最近的比特币行情" --format json |
 .\.venv\Scripts\python.exe -m compileall -q src tests
 .\.venv\Scripts\python.exe -m pytest tests -q
 npm test
-npm pack --dry-run
+npm run pack:dry
 ```
 
+GitHub Actions 在 `ubuntu-latest` 与 `windows-latest` 上运行相同门禁（`.github/workflows/test.yml`）。当前测试基线：**268 passed**。
+
 ## 最新稳定版说明
+
+### v0.1.15
+
+六阶段优化路线图稳定版 — 质量、模块化、性能、可观测性、CI，以及路线图外的 TTL 缓存与 `zhipu-search` deprecation cycle。
+
+- **质量**：JSON schema 契约测试、收紧 `gap_check` 收敛、research mock E2E、provider fallback 矩阵测试。
+- **模块化**：研究编排拆分为 `research_executor`、`research_discovery`、`research_fetch`、`research_synthesis` 等模块；`service.py` 保留 facade。
+- **性能**：并发候选抓取（默认 3）、`--locale-scope cn|en|both`、按 budget 限制抓取数量。
+- **可观测性**：`research --dry-run`、`--progress`、结构化 citations、`output_schema_version: 1`。
+- **CI**：跨平台测试矩阵 + `npm test` / `pack:dry` 门禁。
+- **TTL 缓存**：按能力分级的 exact-match 缓存；`SMART_SEARCH_CACHE=off` 可关闭；`provider_attempts` 含 `cache_hit`。
+- **Deprecation**：`zhipu-search` stderr 警告 + 文档化移除时间表（0.2.0 移除命令）。
+
+升级：
+
+```powershell
+npm install -g @blxzer/smart-search@latest
+smart-search --version
+```
+
+预期版本：`0.1.15`。
 
 ### v0.1.14
 
@@ -400,15 +440,14 @@ npm pack --dry-run
 
 - `smart-search diagnose openai-compatible --format markdown` 会生成适合复制给维护者的 OpenAI-compatible 卡住/超时诊断报告。
 - 文档/API 路由现在优先用 Context7 处理库/框架文档，Exa 继续负责官方域名、论文、产品页和可信站点发现。
-- README、打包 skill 资源、release notes 和测试已经同步说明并验证这次稳定包行为。
 
 ## 发布通道
 
 稳定版走 Git tag 和 npm `latest`：
 
 ```powershell
-git tag v0.1.14
-git push origin v0.1.14
+git tag v0.1.15
+git push origin v0.1.15
 ```
 
 测试版不移动 `latest`。推送到 `main` 会发布下一个 `<package.json version>-beta.N` 到 npm `next`，并且 `N` 按每个稳定版本重新从 1 开始。例如 `0.1.10-beta.1`、`0.1.10-beta.2` 之后是 `0.1.10-beta.3`。
@@ -419,11 +458,11 @@ git push origin v0.1.14
 
 发布收尾检查：
 
-1. 先读 `npm view @blxzer77/smart-search versions --json`、`npm view @blxzer77/smart-search dist-tags --json`、`gh release list --repo blxzer77/smart-search --limit 100`。
+1. 先读 `npm view @blxzer/smart-search versions --json`、`npm view @blxzer/smart-search dist-tags --json`、`gh release list --repo blxzer77/smart-search --limit 100`。
 2. beta 发布必须保持 `latest` 不动，只移动 `next` 或指定的非 latest tag。
 3. 遇到 npm `E409`，先查版本是否已经发布，再串行重跑对应版本。
 4. 最后安装指定版本并运行 `smart-search --version`、`smart-search doctor --format json`。
-5. Windows npm/mise 包装层额外跑中文 JSON 管道：`smart-search search "深度搜索一下最近的比特币行情" --format json | ConvertFrom-Json`。
+5. Windows npm/mise 包装层额外跑中文 JSON 管道：`smart-search search "深度搜索一下最近的比特币行情" --format json | ConvertFrom-Json`。稳定版示例：`npm install -g @blxzer/smart-search@0.1.15`。
 
 ## Deprecation 声明
 

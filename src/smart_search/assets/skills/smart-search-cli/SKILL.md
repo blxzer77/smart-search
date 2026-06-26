@@ -122,7 +122,7 @@ Default evidence policy is `fetch_before_claim`: key claims in the final answer 
 
 Live Deep Research executor:
 
-- `smart-search research QUERY [--budget quick|standard|deep] [--evidence-dir PATH] [--fallback auto|off] [--format json|markdown|content] [--output PATH]` runs the staged workflow directly.
+- `smart-search research QUERY [--budget quick|standard|deep] [--locale-scope cn|en|both] [--evidence-dir PATH] [--fallback auto|off] [--dry-run] [--progress] [--format json|markdown|content] [--output PATH]` runs the staged workflow directly. Use `--dry-run` to preview plan/routing without live providers; `--progress` for stderr stage logs; `--locale-scope cn` or `en` to skip bilingual discovery when cost matters.
 - Default `--fallback auto` permits same-capability fallback inside selected routes. Use `--fallback off` only for debugging or deterministic provider checks.
 - Research output includes `final_answer`, `citations`, `evidence_items`, `gap_check`, `provider_attempts`, `fallback_used`, `degraded`, `route_policy_version`, and `evidence_dir`.
 - The synthesis is evidence-only. It may cite fetched/read evidence, but it must not cite unfetched discovery candidates as proof.
@@ -136,7 +136,7 @@ Research provider advantage routing:
 - Jina: known public URL, PDF, and arXiv clean extraction; ReaderLM-v2 requires `JINA_API_KEY`.
 - Firecrawl: robust fetch fallback, JS-heavy/dynamic pages, browser-like extraction, OCR/PDF/structured extraction.
 
-Safe research overrides are `SMART_SEARCH_RESEARCH_PREFERRED_PROVIDERS` and `SMART_SEARCH_RESEARCH_DISABLED_PROVIDERS`. They may reorder or disable providers only within capabilities the provider already supports; they must not move a provider across capability boundaries.
+Safe research overrides are `SMART_SEARCH_RESEARCH_PREFERRED_PROVIDERS`, `SMART_SEARCH_RESEARCH_DISABLED_PROVIDERS`, and `SMART_SEARCH_CACHE` (`on` by default; `off` disables the in-process provider TTL cache). Preferred/disabled provider CSV values may reorder or disable providers only within capabilities the provider already supports; they must not move a provider across capability boundaries.
 
 Deep Research test coverage for workflow maintenance should verify trigger phrases, normal search requests that should not trigger Deep Research, required `research_plan` fields, allowed tool whitelist, bilingual search steps, `fetch_before_claim`, evidence output paths, capability boundaries, `intent_signals`, `capability_plan`, `gap_check`, simple current prompts such as `深度搜索一下最近的比特币行情`, docs/API prompts, claim-verification prompts, user-provided URL fetch-first flows, missing-provider failure guidance, and the rule that fixed topic recipe ids are not required schema. When real keys are available and the user expects live checks, a small live pass can run `doctor`, two broad `search` commands (Chinese and English), one `exa-search`, and one `fetch`.
 

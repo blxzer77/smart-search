@@ -131,8 +131,22 @@ Use live Deep Research execution when you want the CLI to run the staged workflo
 
 ```powershell
 smart-search research "OpenAI Responses API web_search vs Chat Completions search: which should I use?" --budget deep --fallback auto --format json
+smart-search research "query" --locale-scope cn --budget quick --format json
+smart-search research "query" --dry-run --format json
+smart-search research "query" --progress --format markdown
 smart-search rs "https://example.com/source" --fallback off --format markdown
 ```
+
+Research CLI options:
+
+| Flag | Values | Purpose |
+| --- | --- | --- |
+| `--budget` | `quick`, `standard`, `deep` (default) | Controls decomposition depth and candidate fetch limits (`quick=3`, `standard=5`, `deep=6` URLs) |
+| `--locale-scope` | `cn`, `en`, `both` (default) | Bilingual web discovery scope; use `cn` or `en` to reduce duplicate search cost |
+| `--dry-run` | flag | Plan + routing preview only; no live provider calls |
+| `--progress` | flag | `[research]` stage logs to stderr (suppressed during `--dry-run`) |
+| `--fallback` | `auto` (default), `off` | Same-capability provider fallback inside each stage |
+| `--evidence-dir` | path | Override default evidence artifact directory |
 
 `research` builds an internal Deep Research plan, then runs plan -> discover -> fetch/read -> gap check -> evidence-only synthesis. The plan stage produces:
 
@@ -155,7 +169,7 @@ search, exa-search, exa-similar, context7-library, context7-docs, fetch, map
 
 `research` defaults to `--fallback auto`, which permits same-capability fallback even when a normal `search` configuration is conservative. `--fallback off` tries only the first provider selected inside each capability, which is useful for debugging provider behavior.
 
-Research JSON includes `final_answer`, `citations`, `evidence_items`, `gap_check`, `provider_attempts`, `fallback_used`, `degraded`, `route_policy_version`, and `evidence_dir`. Discovery snippets are candidates only; citations are produced only from fetched/read evidence. If fallback cannot close a gap, `research` finishes degraded and lists unsupported gaps instead of inventing evidence.
+Research JSON includes `final_answer`, `citations`, `evidence_items`, `gap_check`, `provider_attempts`, `fallback_used`, `degraded`, `route_policy_version`, `evidence_dir`, and `output_schema_version` (currently `1`). Citations are structured objects with `id`, `source_type`, `subquestion_id`, `verified`, and `content_len`. `provider_attempts` and `stage_results` may include `cache_hit` when the provider TTL cache serves a repeat query. Discovery snippets are candidates only; citations are produced only from fetched/read evidence. If fallback cannot close a gap, `research` finishes degraded and lists unsupported gaps instead of inventing evidence.
 
 The research router is capability-first plus provider-advantage:
 
@@ -239,6 +253,7 @@ Local config and evidence paths:
 - `research` evidence defaults to `evidence` under the active config directory, for example `%LOCALAPPDATA%\smart-search\evidence` on Windows.
 - `SMART_SEARCH_EVIDENCE_DIR` overrides the evidence root. Relative values resolve under the active config directory; absolute values are used as-is.
 - `SMART_SEARCH_RESEARCH_PREFERRED_PROVIDERS` and `SMART_SEARCH_RESEARCH_DISABLED_PROVIDERS` are advanced `research` routing overrides. They accept provider CSV values and can only reorder or disable providers inside existing capability boundaries.
+- `SMART_SEARCH_CACHE` controls the in-process provider TTL cache for `research` (`on` by default; set `off` to disable). Cache tiers: `web_fetch` 7d, `docs_search` 1h, `web_search` 10min; time-sensitive queries skip `web_search`/`docs_search` caching; `main_search` is never cached.
 - Earlier Windows source builds defaulted to `~\.config\smart-search\config.json`, while some installs were already pinned to `%LOCALAPPDATA%\smart-search` through `SMART_SEARCH_CONFIG_DIR`. If the new Windows default file is missing but the old home config exists, Smart Search reads the old file as `legacy_windows_home` so upgrades do not lose configuration. `config path` and `doctor` report the active/default/legacy config paths, `SMART_SEARCH_CONFIG_DIR`, `SMART_SEARCH_EVIDENCE_DIR`, and the resolved evidence root.
 
 Provider timeouts:
@@ -371,10 +386,33 @@ smart-search search "深度搜索一下最近的比特币行情" --format json |
 .\.venv\Scripts\python.exe -m compileall -q src tests
 .\.venv\Scripts\python.exe -m pytest tests -q
 npm test
-npm pack --dry-run
+npm run pack:dry
 ```
 
+GitHub Actions runs the same gates on `ubuntu-latest` and `windows-latest` (`.github/workflows/test.yml`). Current test baseline: **268 passed**.
+
 ## Latest stable release notes
+
+### v0.1.15
+
+Six-phase optimization roadmap release — quality, modularization, performance, observability, CI, plus post-roadmap TTL cache and `zhipu-search` deprecation cycle.
+
+- **Quality**: JSON schema contract tests, tighter `gap_check` convergence, research mock E2E, provider fallback matrix tests.
+- **Modularization**: split research orchestration into `research_executor`, `research_discovery`, `research_fetch`, `research_synthesis`, and related modules; `service.py` remains a facade.
+- **Performance**: concurrent candidate fetch (default 3), `--locale-scope cn|en|both`, budget-based fetch limits.
+- **Observability**: `research --dry-run`, `--progress`, structured citations, `output_schema_version: 1`.
+- **CI**: cross-platform test matrix + `npm test` / `pack:dry` gates.
+- **TTL cache**: per-capability exact-match cache with `SMART_SEARCH_CACHE=off` escape hatch; `cache_hit` in `provider_attempts`.
+- **Deprecation**: `zhipu-search` stderr warning + documented removal schedule (command removed in 0.2.0).
+
+Upgrade:
+
+```powershell
+npm install -g @blxzer/smart-search@latest
+smart-search --version
+```
+
+Expected version: `0.1.15`.
 
 ### v0.1.14
 
@@ -382,15 +420,14 @@ This stable patch release moves the tested `0.1.13-beta.4` CLI and bundled skill
 
 - `smart-search diagnose openai-compatible --format markdown` produces a focused, copy-pasteable troubleshooting report for OpenAI-compatible search hangs/timeouts.
 - Docs/API routing now prefers Context7 for library/framework documentation and keeps Exa for official domains, papers, product pages, and trusted-site discovery.
-- README, bundled skill assets, release notes, and tests now document and verify the exact stable package behavior.
 
 ## Release lanes
 
 Stable releases use Git tags and npm `latest`:
 
 ```powershell
-git tag v0.1.14
-git push origin v0.1.14
+git tag v0.1.15
+git push origin v0.1.15
 ```
 
 Test releases use npm prereleases and do not move `latest`. A push to `main` publishes the next `<package.json version>-beta.N` version under npm dist-tag `next`; `N` resets for each stable base version. To avoid publishing an unwanted beta for a stable bump, the `chore(release): bump version to X.Y.Z` branch commit is skipped by the workflow and the matching `vX.Y.Z` tag publishes npm `latest`. For example, after `0.1.10-beta.1` and `0.1.10-beta.2`, the next `main` publish is `0.1.10-beta.3`.
@@ -401,11 +438,11 @@ Stable GitHub releases read optional body text from `.github/releases/vX.Y.Z.md`
 
 Release closeout checklist:
 
-1. Verify the registry and tags before changing anything: `npm view @blxzer77/smart-search versions --json`, `npm view @blxzer77/smart-search dist-tags --json`, and `gh release list --repo blxzer77/smart-search --limit 100`.
+1. Verify the registry and tags before changing anything: `npm view @blxzer/smart-search versions --json`, `npm view @blxzer/smart-search dist-tags --json`, and `gh release list --repo blxzer77/smart-search --limit 100`.
 2. For historical beta backfill, publish the replacement `*-beta.N` package through Actions with `create_github_release=false` if the workflow token cannot create releases, then create the missing GitHub prerelease locally with `gh release create vX.Y.Z-beta.N --target <commit> --prerelease --latest=false`.
 3. Treat npm `E409` during parallel backfills as a registry concurrency failure, not a version-design failure. Re-run the affected version serially after checking whether the package already exists.
 4. Do a machine-readable gap check: expected beta versions minus npm versions must be empty, and expected `v*beta*` releases minus GitHub prereleases must be empty.
-5. Install the selected test build explicitly, for example `mise use -g "npm:@blxzer77/smart-search@0.1.1-beta.1" -y --pin`, then run `mise reshim`, `where.exe smart-search`, `smart-search --version`, `smart-search doctor --format json`, and a non-ASCII JSON pipe such as `smart-search search "深度搜索一下最近的比特币行情" --format json | ConvertFrom-Json`.
+5. Install the selected test build explicitly, for example `mise use -g "npm:@blxzer/smart-search@0.1.15" -y --pin`, then run `mise reshim`, `where.exe smart-search`, `smart-search --version`, `smart-search doctor --format json`, and a non-ASCII JSON pipe such as `smart-search search "深度搜索一下最近的比特币行情" --format json | ConvertFrom-Json`.
 
 ## Deprecation notices
 

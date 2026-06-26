@@ -24,7 +24,7 @@
 - `smart-search zhipu-search QUERY [--count N] [--search-engine NAME] [--search-recency-filter VALUE] [--search-domain-filter DOMAIN] [--content-size medium|high] [--format json|markdown|content] [--output PATH]` — **DEPRECATED**: emits a stderr warning on every invocation; the subcommand, the `research_discovery` zhipu branch, and `providers/zhipu.py` will be removed on the schedule in README § "Deprecation notices".
 - `smart-search context7-library NAME [QUERY] [--format json|markdown|content] [--output PATH]`
 - `smart-search context7-docs LIBRARY_ID QUERY [--format json|markdown|content] [--output PATH]`
-- `smart-search research QUERY [--budget quick|standard|deep] [--evidence-dir PATH] [--fallback auto|off] [--format json|markdown|content] [--output PATH]`
+- `smart-search research QUERY [--budget quick|standard|deep] [--locale-scope cn|en|both] [--evidence-dir PATH] [--fallback auto|off] [--dry-run] [--progress] [--format json|markdown|content] [--output PATH]`
 - `smart-search map URL [--instructions TEXT] [--max-depth N] [--max-breadth N] [--limit N] [--timeout SECONDS] [--format json|markdown|content] [--output PATH]`
 - `smart-search doctor [--format json|markdown|content] [--output PATH]`
 - `smart-search diagnose openai-compatible [--timeout SECONDS] [--format json|markdown] [--output PATH]`
