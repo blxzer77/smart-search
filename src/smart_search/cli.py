@@ -805,6 +805,16 @@ def _write_stderr(text: str) -> None:
     sys.stderr.write(_stream_safe(sys.stderr, text))
 
 
+ZHIPU_DEPRECATION_WARNING = (
+    "[DEPRECATED] `zhipu-search` is deprecated and will be removed in the next minor version (0.2.0).\n"
+    "It is no longer used by default research routing. Use `search` (Tavily/Firecrawl) or `research` instead.\n"
+)
+
+
+def _emit_zhipu_deprecation() -> None:
+    _write_stderr(ZHIPU_DEPRECATION_WARNING)
+
+
 def _smart_search_banner_text() -> str:
     try:
         import pyfiglet
@@ -1685,6 +1695,7 @@ async def _run_async(args: argparse.Namespace) -> int:
         data = await service.exa_find_similar(args.url, num_results=args.num_results)
         return _print_result("exa-similar", data, args.format, args.output)
     if args.command == "zhipu-search":
+        _emit_zhipu_deprecation()
         data = await service.zhipu_search(
             args.query,
             count=args.count,
@@ -1706,6 +1717,9 @@ async def _run_async(args: argparse.Namespace) -> int:
             budget=args.budget,
             evidence_dir=args.evidence_dir,
             fallback=args.fallback,
+            locale_scope=args.locale_scope,
+            dry_run=args.dry_run,
+            progress=args.progress,
         )
         return _print_result("research", data, args.format, args.output)
     if args.command == "doctor":
@@ -1873,7 +1887,14 @@ def build_parser() -> argparse.ArgumentParser:
     _add_format_args(similar_parser)
 
     zhipu_parser = sub.add_parser(
-        "zhipu-search", aliases=COMMAND_ALIASES["zhipu-search"], help="Run Zhipu Web Search source-first search."
+        "zhipu-search",
+        aliases=COMMAND_ALIASES["zhipu-search"],
+        help="Run Zhipu Web Search source-first search. (DEPRECATED: removed in 0.2.0)",
+        description=(
+            "DEPRECATED: `zhipu-search` is deprecated and will be removed in 0.2.0. "
+            "It is no longer used by default research routing. Use `search` or `research` instead. "
+            "Every invocation emits a [DEPRECATED] warning to stderr."
+        ),
     )
     zhipu_parser.set_defaults(command="zhipu-search")
     zhipu_parser.add_argument("query")
@@ -1914,6 +1935,22 @@ def build_parser() -> argparse.ArgumentParser:
     research_parser.add_argument("--budget", choices=["quick", "standard", "deep"], default="deep")
     research_parser.add_argument("--evidence-dir", default="")
     research_parser.add_argument("--fallback", choices=["auto", "off"], default="auto")
+    research_parser.add_argument(
+        "--locale-scope",
+        choices=["cn", "en", "both"],
+        default="both",
+        help="Bilingual web discovery: cn (Chinese), en (English), or both (default).",
+    )
+    research_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Build and print the research plan and routing preview without calling live providers.",
+    )
+    research_parser.add_argument(
+        "--progress",
+        action="store_true",
+        help="Write staged execution progress lines to stderr.",
+    )
     _add_format_args(research_parser)
 
     doctor_parser = sub.add_parser(

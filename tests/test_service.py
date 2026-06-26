@@ -359,29 +359,33 @@ def test_research_fallback_detection_is_same_capability_only():
 async def test_research_executes_staged_evidence_only_workflow(monkeypatch, tmp_path):
     _configure_research_minimum(monkeypatch)
 
-    async def fake_web_search(query, count=5, providers="auto", fallback="auto"):
+    async def fake_bilingual(query, count=5, providers="auto", fallback="auto", **_kwargs):
         return (
-            [{"url": "https://evidence.example.com/source", "title": "Source", "provider": "tavily"}],
-            [service._attempt("web_search", "tavily", "ok", time.time(), result_count=1)],
+            [
+                {"url": "https://evidence.example.com/source-a", "title": "Source A", "provider": "tavily"},
+                {"url": "https://evidence.example.com/source-b", "title": "Source B", "provider": "tavily"},
+            ],
+            [service._attempt("web_search", "tavily", "ok", time.time(), result_count=2)],
         )
 
     async def fake_fetch(url, fallback="auto", preferred_order=None):
         return (
-            {"ok": True, "url": url, "provider": "jina", "content": "# Evidence\nFetched body only."},
+            {"ok": True, "url": url, "provider": "jina", "content": f"# Evidence\nFetched body for {url}."},
             [service._attempt("web_fetch", "jina", "ok", time.time(), result_count=1)],
         )
 
-    monkeypatch.setattr(service, "_run_web_search_fallback", fake_web_search)
+    monkeypatch.setattr(service, "_run_bilingual_web_search", fake_bilingual)
     monkeypatch.setattr(service, "_run_web_fetch_fallback", fake_fetch)
 
     result = await service.research("今天国内 AI 新闻", evidence_dir=str(tmp_path), fallback="auto")
 
     assert result["ok"] is True
+    assert result["gap_check"]["status"] == "closed"
     assert result["query_mode"] == "research"
     assert result["route_policy_version"] == service.RESEARCH_ROUTE_POLICY_VERSION
-    assert result["evidence_items"][0]["url"] == "https://evidence.example.com/source"
-    assert result["citations"] == [{"url": "https://evidence.example.com/source", "title": "Source", "provider": "jina"}]
-    assert "Fetched body only" in result["final_answer"]
+    assert len(result["evidence_items"]) >= 2
+    assert len(result["citations"]) >= 2
+    assert "Fetched body" in result["final_answer"]
     assert "tavily" in [attempt["provider"] for attempt in result["provider_attempts"]]
     assert "zhipu" not in [attempt["provider"] for attempt in result["provider_attempts"]]
     assert (tmp_path / "summary.json").exists()
@@ -391,7 +395,7 @@ async def test_research_executes_staged_evidence_only_workflow(monkeypatch, tmp_
 async def test_research_reports_degraded_gaps_without_citing_discovery_candidates(monkeypatch, tmp_path):
     _configure_research_minimum(monkeypatch)
 
-    async def fake_web_search(query, count=5, providers="auto", fallback="auto"):
+    async def fake_bilingual(query, count=5, providers="auto", fallback="auto", **_kwargs):
         return (
             [{"url": "https://candidate.example.com", "title": "Candidate", "provider": "tavily"}],
             [service._attempt("web_search", "tavily", "ok", time.time(), result_count=1)],
@@ -406,7 +410,7 @@ async def test_research_reports_degraded_gaps_without_citing_discovery_candidate
             ],
         )
 
-    monkeypatch.setattr(service, "_run_web_search_fallback", fake_web_search)
+    monkeypatch.setattr(service, "_run_bilingual_web_search", fake_bilingual)
     monkeypatch.setattr(service, "_run_web_fetch_fallback", fake_fetch)
 
     result = await service.research("今天国内 AI 新闻", evidence_dir=str(tmp_path), fallback="auto")

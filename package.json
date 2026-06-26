@@ -1,6 +1,6 @@
 {
   "name": "@blxzer/smart-search",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "CLI-first bilingual web research with OpenAI-compatible search, Exa, Context7, Tavily, Firecrawl, and staged Deep Research execution.",
   "license": "MIT",
   "homepage": "https://github.com/blxzer77/smart-search#readme",

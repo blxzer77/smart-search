@@ -1,0 +1,43 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install npm package and isolated Python runtime
+        run: npm ci
+
+      - name: Compile Python sources (Unix)
+        if: runner.os != 'Windows'
+        run: .smart-search-python/bin/python -m compileall -q src tests
+
+      - name: Compile Python sources (Windows)
+        if: runner.os == 'Windows'
+        run: .smart-search-python\Scripts\python.exe -m compileall -q src tests
+
+      - name: Run npm wrapper test gate
+        run: npm test
+
+      - name: Pack dry run
+        run: npm run pack:dry

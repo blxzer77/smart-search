@@ -451,3 +451,56 @@ def test_deleted_features_absent_from_shipped_assets():
     ]
     for token in forbidden:
         assert token not in corpus, f"deleted-feature reference leaked into shipped docs/assets: {token}"
+
+
+def test_zhipu_search_cli_emits_deprecation_warning(monkeypatch, capsys):
+    """Regression: `zhipu-search` invocation must emit a [DEPRECATED] stderr marker."""
+    from smart_search import cli
+
+    async def fake_zhipu_search(*args, **kwargs):
+        return {"ok": True, "results": [], "deprecated": True}
+
+    monkeypatch.setattr(cli.service, "zhipu_search", fake_zhipu_search)
+
+    argv = [
+        "zhipu-search", "test query",
+        "--count", "3",
+        "--format", "json",
+    ]
+
+    rc = cli.main(argv)
+    captured = capsys.readouterr()
+    assert rc == 0
+    assert "[DEPRECATED]" in captured.err
+    assert "0.2.0" in captured.err
+
+
+def test_zhipu_search_help_text_marks_deprecated(capsys):
+    """Regression: `zhipu-search --help` must surface the DEPRECATED marker."""
+    from smart_search import cli
+
+    parser = cli.build_parser()
+    try:
+        parser.parse_args(["zhipu-search", "--help"])
+    except SystemExit:
+        pass
+    captured = capsys.readouterr()
+    assert "DEPRECATED" in captured.out or "DEPRECATED" in captured.err
+
+
+def test_readme_documents_zhipu_deprecation_schedule():
+    """Regression: README must document the zhipu-search deprecation schedule."""
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    readme_zh = (ROOT / "README.zh-CN.md").read_text(encoding="utf-8")
+
+    for text, label in [(readme, "README.md"), (readme_zh, "README.zh-CN.md")]:
+        assert "Deprecation" in text or "deprecation" in text.lower(), f"{label} missing deprecation section"
+        assert "0.2.0" in text, f"{label} missing 0.2.0 removal target"
+        assert "zhipu-search" in text, f"{label} missing zhipu-search reference"
+
+
+def test_cli_contract_marks_zhipu_search_deprecated():
+    """Regression: packaged cli-contract.md must mark zhipu-search DEPRECATED."""
+    contract = (PACKAGED_SKILL_DIR / "references" / "cli-contract.md").read_text(encoding="utf-8")
+    assert "DEPRECATED" in contract
+    assert "zhipu-search" in contract

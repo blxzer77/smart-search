@@ -14,7 +14,8 @@ function run(command, args, options = {}) {
     cwd: packageRoot,
     stdio: "inherit",
     shell: options.shell || false,
-    windowsHide: true
+    windowsHide: true,
+    env: options.env || process.env,
   });
   if (result.error) {
     console.error(result.error.message);
@@ -56,8 +57,16 @@ if (!fs.existsSync(pythonPath)) {
   process.exit(1);
 }
 
+const pytestTmp = path.join(packageRoot, ".pytest-tmp");
+fs.mkdirSync(pytestTmp, { recursive: true });
+const testEnv = {
+  ...process.env,
+  TMP: pytestTmp,
+  TEMP: pytestTmp,
+};
+
 run(pythonPath, ["-m", "pip", "install", "--disable-pip-version-check", "-e", ".[dev]"]);
-run(pythonPath, ["-m", "pytest"]);
+run(pythonPath, ["-m", "pytest"], { env: testEnv });
 run(process.execPath, ["npm/scripts/test-wrapper-repair.js"]);
 run(process.execPath, ["npm/bin/smart-search.js", "--help"]);
 const utf8Probe = spawnSync(process.execPath, [

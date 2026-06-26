@@ -286,7 +286,7 @@ smart-search setup --non-interactive `
 | `map` | `m` | 读取站点结构 |
 | `exa-search` | `exa`、`x` | Exa 来源发现 |
 | `exa-similar` | `xs` | 从一个 URL 找相似页面 |
-| `zhipu-search` | `z`、`zp` | Deprecated legacy 智谱 Web Search API |
+| `zhipu-search` | `z`、`zp` | **DEPRECATED** — 0.2.0 移除；legacy 智谱 Web Search API |
 | `context7-library` | `c7`、`ctx7` | 查 Context7 库候选 |
 | `context7-docs` | `c7d`、`c7docs`、`ctx7-docs` | 抓 Context7 文档 |
 | `doctor` | `d` | 配置和连通性检查 |
@@ -424,6 +424,22 @@ git push origin v0.1.14
 3. 遇到 npm `E409`，先查版本是否已经发布，再串行重跑对应版本。
 4. 最后安装指定版本并运行 `smart-search --version`、`smart-search doctor --format json`。
 5. Windows npm/mise 包装层额外跑中文 JSON 管道：`smart-search search "深度搜索一下最近的比特币行情" --format json | ConvertFrom-Json`。
+
+## Deprecation 声明
+
+### `zhipu-search` CLI 命令（deprecated；计划移除）
+
+`zhipu-search` 子命令（别名 `z`、`zp`）及底层 `providers/zhipu.py` 路由已 **deprecated**，不再参与默认 `search` / `research` 路由，仅保留用于显式 legacy 兼容。
+
+移除时间表：
+
+| 版本 | 动作 |
+|------|------|
+| 0.1.x（当前） | 每次 `zhipu-search` 调用向 stderr 输出 deprecation warning；`doctor` 报告 `deprecated` 状态；文档标记该命令 deprecated。不移除任何代码。 |
+| 0.2.0（下个 minor） | 移除 `zhipu-search` CLI 子命令与 `research_discovery` zhipu 分支。 |
+| 1.0.0（下个 major） | 移除 `providers/zhipu.py` 与所有 `ZHIPU_*` 配置键。 |
+
+迁移：改用 `search`（Tavily / Firecrawl 双语发现）或 `research`（完整 Deep Research）。
 
 ## Community
 

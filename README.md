@@ -256,7 +256,7 @@ Provider timeouts:
 | `map` | `m` | Map a website structure |
 | `exa-search` | `exa`, `x` | Exa source discovery |
 | `exa-similar` | `xs` | Similar pages from one URL |
-| `zhipu-search` | `z`, `zp` | Deprecated legacy Zhipu Web Search API |
+| `zhipu-search` | `z`, `zp` | **DEPRECATED** — removed in 0.2.0; legacy Zhipu Web Search API |
 | `context7-library` | `c7`, `ctx7` | Resolve Context7 library candidates |
 | `context7-docs` | `c7d`, `c7docs`, `ctx7-docs` | Fetch Context7 docs |
 | `doctor` | `d` | Masked config and connectivity check |
@@ -406,6 +406,22 @@ Release closeout checklist:
 3. Treat npm `E409` during parallel backfills as a registry concurrency failure, not a version-design failure. Re-run the affected version serially after checking whether the package already exists.
 4. Do a machine-readable gap check: expected beta versions minus npm versions must be empty, and expected `v*beta*` releases minus GitHub prereleases must be empty.
 5. Install the selected test build explicitly, for example `mise use -g "npm:@blxzer77/smart-search@0.1.1-beta.1" -y --pin`, then run `mise reshim`, `where.exe smart-search`, `smart-search --version`, `smart-search doctor --format json`, and a non-ASCII JSON pipe such as `smart-search search "深度搜索一下最近的比特币行情" --format json | ConvertFrom-Json`.
+
+## Deprecation notices
+
+### `zhipu-search` CLI command (deprecated; removal scheduled)
+
+The `zhipu-search` subcommand (aliases `z`, `zp`) and the underlying `providers/zhipu.py` route are **deprecated** and no longer used by default `search` or `research` routing. They remain available only for explicit legacy compatibility.
+
+Removal schedule:
+
+| Version | Action |
+|---------|--------|
+| 0.1.x (current) | Deprecation warning to stderr on every `zhipu-search` invocation; `doctor` reports `deprecated` status; docs mark the command as deprecated. No code removed. |
+| 0.2.0 (next minor) | Remove the `zhipu-search` CLI subcommand and the `research_discovery` zhipu branch. |
+| 1.0.0 (next major) | Remove `providers/zhipu.py` and all `ZHIPU_*` configuration keys. |
+
+Migration: use `search` (Tavily / Firecrawl bilingual discovery) or `research` (full Deep Research) instead.
 
 ## Community
 

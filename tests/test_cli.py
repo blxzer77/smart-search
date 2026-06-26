@@ -427,7 +427,7 @@ def test_fetch_alias_uses_canonical_command(monkeypatch, capsys):
 def test_research_command_uses_service_and_outputs_json(monkeypatch, capsys, tmp_path):
     captured = {}
 
-    async def fake_research(query, budget="deep", evidence_dir="", fallback="auto"):
+    async def fake_research(query, budget="deep", evidence_dir="", fallback="auto", **_kwargs):
         captured.update({"query": query, "budget": budget, "evidence_dir": evidence_dir, "fallback": fallback})
         return {
             "ok": True,
@@ -469,7 +469,7 @@ def test_research_command_uses_service_and_outputs_json(monkeypatch, capsys, tmp
 
 
 def test_research_markdown_and_content_output(monkeypatch, capsys):
-    async def fake_research(query, budget="deep", evidence_dir="", fallback="auto"):
+    async def fake_research(query, budget="deep", evidence_dir="", fallback="auto", **_kwargs):
         return {
             "ok": True,
             "question": query,
@@ -932,7 +932,7 @@ def test_all_formatted_commands_have_non_json_markdown(monkeypatch):
     async def fake_doctor():
         return {"ok": True, "config_status": "ok", "minimum_profile_ok": True}
 
-    async def fake_research(query, budget="deep", evidence_dir="", fallback="auto"):
+    async def fake_research(query, budget="deep", evidence_dir="", fallback="auto", **_kwargs):
         return {"ok": True, "question": query, "content": "Research", "final_answer": "Research", "citations": [], "gap_check": {"gaps": []}}
 
     def fake_config_path():
