@@ -41,10 +41,6 @@ class Config:
         "CONTEXT7_API_KEY",
         "CONTEXT7_BASE_URL",
         "CONTEXT7_TIMEOUT_SECONDS",
-        "ZHIPU_API_KEY",
-        "ZHIPU_API_URL",
-        "ZHIPU_SEARCH_ENGINE",
-        "ZHIPU_TIMEOUT_SECONDS",
         "JINA_API_KEY",
         "JINA_READER_API_URL",
         "JINA_RESPOND_WITH",
@@ -517,22 +513,6 @@ class Config:
         return float(self._get_config_value("CONTEXT7_TIMEOUT_SECONDS", "60") or "60")
 
     @property
-    def zhipu_api_key(self) -> str | None:
-        return self._get_config_value("ZHIPU_API_KEY")
-
-    @property
-    def zhipu_api_url(self) -> str:
-        return self._get_config_value("ZHIPU_API_URL", "https://open.bigmodel.cn/api") or "https://open.bigmodel.cn/api"
-
-    @property
-    def zhipu_search_engine(self) -> str:
-        return self._get_config_value("ZHIPU_SEARCH_ENGINE", "search_std") or "search_std"
-
-    @property
-    def zhipu_timeout(self) -> float:
-        return float(self._get_config_value("ZHIPU_TIMEOUT_SECONDS", "60") or "60")
-
-    @property
     def jina_api_key(self) -> str | None:
         return self._get_config_value("JINA_API_KEY")
 
@@ -615,10 +595,6 @@ class Config:
             "CONTEXT7_API_KEY": self._mask_api_key(self.context7_api_key) if self.context7_api_key else "未配置",
             "CONTEXT7_BASE_URL": self.context7_base_url,
             "CONTEXT7_TIMEOUT_SECONDS": self.context7_timeout,
-            "ZHIPU_API_KEY": self._mask_api_key(self.zhipu_api_key) if self.zhipu_api_key else "未配置",
-            "ZHIPU_API_URL": self.zhipu_api_url,
-            "ZHIPU_SEARCH_ENGINE": self.zhipu_search_engine,
-            "ZHIPU_TIMEOUT_SECONDS": self.zhipu_timeout,
             "JINA_API_KEY": self._mask_api_key(self.jina_api_key) if self.jina_api_key else "未配置",
             "JINA_READER_API_URL": self.jina_reader_api_url,
             "JINA_RESPOND_WITH": self.jina_respond_with,

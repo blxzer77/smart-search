@@ -51,8 +51,8 @@ The dependency direction is **`cli.py` → `service.py` → `providers/` + `conf
 | --- | --- | --- |
 | `main_search` | `xai-responses` → `openai-compatible` | `MAIN_SEARCH_FALLBACK_CHAIN` |
 | `docs_search` | `context7`, `exa` | library/API docs vs official-domain/paper discovery |
-| `web_search` | `zhipu` → `zhipu-mcp` → `tavily` → `firecrawl` | Chinese/current/domain-filtered discovery |
-| `web_fetch` | `tavily` → `jina` → `zhipu-mcp-reader` → `firecrawl` | exact-URL content extraction |
+| `web_search` | `tavily` → `firecrawl` | bilingual Chinese/English web discovery |
+| `web_fetch` | `tavily` → `jina` → `firecrawl` | exact-URL content extraction |
 | `vertical_search` | `anysearch` | experimental; **not** in any fallback chain |
 | `site_map` | `tavily` | |
 | `synthesis` | `main-search` | evidence-only final synthesis used by `research` |

@@ -16,7 +16,6 @@ from .providers.exa import ExaSearchProvider
 from .providers.jina import JinaReaderProvider
 from .providers.openai_compatible import OpenAICompatibleSearchProvider, get_local_time_info
 from .providers.xai_responses import XAIResponsesSearchProvider
-from .providers.zhipu import ZhipuWebSearchProvider
 from .research_keywords import (
     DEEP_ALLOWED_TOOLS,
     DEEP_CHINA_KEYWORDS,
@@ -453,7 +452,6 @@ def get_capability_status() -> dict[str, Any]:
                 if enabled
             ],
             "fallback_chain": ["tavily", "firecrawl"],
-            "deprecated_configured": ["zhipu"] if config.zhipu_api_key else [],
         },
         "docs_search": {
             "configured": [
@@ -1276,44 +1274,6 @@ async def exa_find_similar(url: str, num_results: int = 5) -> dict[str, Any]:
     return data
 
 
-async def zhipu_search(
-    query: str,
-    count: int = 10,
-    search_engine: str = "",
-    search_recency_filter: str = "noLimit",
-    search_domain_filter: str = "",
-    content_size: str = "medium",
-) -> dict[str, Any]:
-    api_key = config.zhipu_api_key
-    if not api_key:
-        return {
-            "ok": False,
-            "error_type": "config_error",
-            "error": "ZHIPU_API_KEY 未配置。请运行 `smart-search setup`，或使用 `smart-search config set ZHIPU_API_KEY <key>`。",
-        }
-    provider = ZhipuWebSearchProvider(
-        config.zhipu_api_url,
-        api_key,
-        search_engine or config.zhipu_search_engine,
-        config.zhipu_timeout,
-    )
-    raw = await provider.search(
-        query=query,
-        count=count,
-        search_engine=search_engine or None,
-        search_recency_filter=search_recency_filter,
-        search_domain_filter=search_domain_filter,
-        content_size=content_size,
-    )
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError:
-        return {"ok": False, "error_type": "parse_error", "error": raw}
-    if not data.get("ok", False):
-        data.setdefault("error_type", "network_error")
-    return data
-
-
 async def context7_library(name: str, query: str = "") -> dict[str, Any]:
     api_key = config.context7_api_key
     if not api_key:
@@ -1930,15 +1890,6 @@ async def _test_jina_connection() -> dict[str, Any]:
     return {"status": status, "message": data.get("error", "Jina Reader 不可用"), "response_time_ms": response_time}
 
 
-async def _test_zhipu_connection() -> dict[str, Any]:
-    if not config.zhipu_api_key:
-        return {"status": "not_configured", "message": "ZHIPU_API_KEY 未设置，智谱搜索功能不可用"}
-    result = await zhipu_search("test", count=1)
-    if result.get("ok"):
-        return {"status": "ok", "message": "智谱 Web Search 可用", "response_time_ms": result.get("elapsed_ms", 0)}
-    return {"status": "warning", "message": result.get("error", "智谱 Web Search 不可用"), "response_time_ms": result.get("elapsed_ms", 0)}
-
-
 async def _test_context7_connection() -> dict[str, Any]:
     if not config.context7_api_key:
         return {"status": "not_configured", "message": "CONTEXT7_API_KEY 未设置，Context7 功能不可用"}
@@ -1995,13 +1946,6 @@ async def doctor() -> dict[str, Any]:
         info["firecrawl_connection_test"] = {"status": "configured", "message": "FIRECRAWL_API_KEY 已设置"}
     else:
         info["firecrawl_connection_test"] = {"status": "not_configured", "message": "FIRECRAWL_API_KEY 未设置，Firecrawl 功能不可用"}
-
-    try:
-        info["zhipu_connection_test"] = await _test_zhipu_connection()
-    except httpx.TimeoutException:
-        info["zhipu_connection_test"] = {"status": "timeout", "message": "智谱 API 请求超时"}
-    except Exception as e:
-        info["zhipu_connection_test"] = {"status": "error", "message": str(e)}
 
     try:
         info["context7_connection_test"] = await _test_context7_connection()

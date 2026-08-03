@@ -96,7 +96,7 @@ smart-search research "Deep research recent Bitcoin market movement" --budget de
 | --- | --- | --- | --- |
 | `main_search` | `search` | xAI Responses **or** OpenAI-compatible Chat Completions (user choice; `SMART_SEARCH_MAIN_SEARCH_ROUTE` sets priority when both are configured) | Broad answer generation and synthesis |
 | `docs_search` | `context7-library`, `context7-docs`, `exa-search` | Context7, Exa | Official docs, SDKs, APIs, framework/library evidence |
-| `web_search` | Bilingual source discovery inside `search`; `zhipu-search` only for deprecated manual compatibility | Tavily, Firecrawl; Zhipu Web Search API only when explicitly requested | Chinese and English web discovery for every normal research question |
+| `web_search` | Bilingual source discovery inside `search` | Tavily, Firecrawl | Chinese and English web discovery for every normal research question |
 | `web_fetch` | `fetch` | Tavily, Jina Reader, Firecrawl | Exact URL content extraction for evidence |
 | `site_map` | `map` | Tavily | Site/documentation structure discovery |
 | `research_executor` | `research` / `rs` | Registered providers by capability | Live staged research: plan, discover, fetch/read, gap check, evidence-only synthesis |
@@ -107,7 +107,7 @@ Fallback is same-capability only:
 | --- | --- |
 | `main_search` | Ordered by `SMART_SEARCH_MAIN_SEARCH_ROUTE`; default `xAI Responses -> OpenAI-compatible` |
 | `docs_search` | Context7 for library/API/docs intent; Exa for official domains, papers, product pages, and trusted-site discovery |
-| `web_search` | Tavily -> Firecrawl; Zhipu only when explicitly selected for the deprecated legacy command |
+| `web_search` | Tavily -> Firecrawl |
 | `web_fetch` | Tavily -> Jina Reader with `JINA_API_KEY` -> Firecrawl |
 
 Jina Reader is a `web_fetch` provider only. `JINA_API_KEY` is required before Jina satisfies `SMART_SEARCH_MINIMUM_PROFILE=standard`; anonymous `r.jina.ai` behavior is treated as explicit/experimental fetch behavior and must not weaken fail-closed setup checks.
@@ -118,7 +118,7 @@ Default `balanced` and `strict` `search` run bilingual `web_search` source disco
 
 `extra_sources` are explicit discovery candidates from `--extra-sources N`, which defaults to `0`. For high-risk claims, news, policy, finance, health, selection decisions, and serious reviews, fetch key pages first and cite fetched text rather than treating a broad search answer as proof.
 
-Routing rule of thumb: start with `search` for broad bilingual discovery and synthesis; use `research` when you want the CLI to execute the deeper evidence workflow; use Context7 first for library/API/framework docs; use Exa for official domains, papers, product pages, trusted sites, and low-noise discovery; use Tavily/Firecrawl for bilingual web discovery and URL/page evidence; use Jina for known-URL extraction. Zhipu is retained only as a deprecated manual compatibility command, not a default route.
+Routing rule of thumb: start with `search` for broad bilingual discovery and synthesis; use `research` when you want the CLI to execute the deeper evidence workflow; use Context7 first for library/API/framework docs; use Exa for official domains, papers, product pages, trusted sites, and low-noise discovery; use Tavily/Firecrawl for bilingual web discovery and URL/page evidence; use Jina for known-URL extraction.
 
 ## Deep Research
 
@@ -175,7 +175,7 @@ Research JSON includes `final_answer`, `citations`, `evidence_items`, `gap_check
 The research router is capability-first plus provider-advantage:
 
 - Context7 first for library/API/framework docs, with Exa as official-domain, paper, product, or trusted low-noise discovery.
-- Tavily / Firecrawl for bilingual Chinese and English broad source discovery. Zhipu is deprecated from default routing and is not used for Chinese/current/domestic searches unless explicitly requested through the legacy command.
+- Tavily / Firecrawl for bilingual Chinese and English broad source discovery.
 - Jina is favored for known public URLs, PDFs, and arXiv extraction; ReaderLM-v2 still requires `JINA_API_KEY`.
 - Firecrawl is favored for JS-heavy, dynamic, browser-like, OCR/PDF, or robust fallback extraction.
 
@@ -200,7 +200,6 @@ Use `smart-search setup` for normal configuration. Environment variables remain 
 | OpenAI-compatible Chat Completions | Primary live search through OpenAI or a compatible relay | `OPENAI_COMPATIBLE_API_URL`, `OPENAI_COMPATIBLE_API_KEY`, `OPENAI_COMPATIBLE_MODEL`, `OPENAI_COMPATIBLE_STREAM` | [OpenAI platform docs](https://platform.openai.com/docs) | [OpenAI API keys](https://platform.openai.com/api-keys) or your relay provider |
 | Exa | Low-noise official docs, API, paper, product, trusted-page discovery | `EXA_API_KEY` | [Exa docs](https://docs.exa.ai/) | [Exa API keys](https://dashboard.exa.ai/api-keys) |
 | Context7 | SDK, library, framework, and API documentation fallback | `CONTEXT7_API_KEY`, `CONTEXT7_BASE_URL` | [Context7 docs](https://context7.com/docs) | [Context7](https://context7.com/) |
-| Zhipu Web Search API | Deprecated manual `zhipu-search` compatibility only; not used by default routing | `ZHIPU_API_KEY`, `ZHIPU_API_URL`, `ZHIPU_SEARCH_ENGINE` | [Zhipu web search docs](https://docs.bigmodel.cn/cn/guide/tools/web-search) | [Zhipu API keys](https://open.bigmodel.cn/usercenter/apikeys) |
 | Tavily | Extra web sources, URL fetch, and site map | `TAVILY_API_URL`, `TAVILY_API_KEY` | [Tavily docs](https://docs.tavily.com/) | [Tavily app](https://app.tavily.com/home) |
 | Jina Reader | Known URL page extraction for `web_fetch`; key required for standard minimum profile | `JINA_API_KEY`, `JINA_READER_API_URL`, `JINA_RESPOND_WITH`, `JINA_TIMEOUT_SECONDS` | [Jina Reader](https://jina.ai/reader/) | [Jina AI](https://jina.ai/) |
 | Firecrawl | Fetch fallback and supplementary web sources | `FIRECRAWL_API_URL`, `FIRECRAWL_API_KEY` | [Firecrawl docs](https://docs.firecrawl.dev/) | [Firecrawl API keys](https://www.firecrawl.dev/app/api-keys) |
@@ -211,11 +210,9 @@ Important boundaries:
 - OpenAI-compatible relays and gateways use the Chat Completions `/chat/completions` route through `OPENAI_COMPATIBLE_*`.
 - `OPENAI_COMPATIBLE_STREAM=true` or `smart-search search --stream` sets `stream=true` only for OpenAI-compatible `search` and provider-side `fetch` calls. It is a relay compatibility switch for long requests and does not change URL description or source ranking.
 - Legacy `SMART_SEARCH_API_URL`, `SMART_SEARCH_API_KEY`, `SMART_SEARCH_API_MODE`, and `SMART_SEARCH_MODEL` are not supported config keys. Use `OPENAI_COMPATIBLE_*` explicitly.
-- Default web discovery is bilingual Tavily / Firecrawl. `zhipu-search` is retained only as a deprecated manual compatibility command and is not used by normal `search` or `research` routing.
-- `zhipu-search` support is the Web Search API route, not Zhipu Chat Completions `tools=[web_search]`, not Search Agent, and not the MCP Server.
+- Default web discovery is bilingual Tavily / Firecrawl via `search` / `research`.
 - Jina Reader is not a general search provider. `JINA_API_KEY` is required for Jina to count toward `standard`; `JINA_RESPOND_WITH=readerlm-v2` also requires `JINA_API_KEY`.
-- `ZHIPU_SEARCH_ENGINE` defaults to `search_std`. Supported official values include `search_std`, `search_pro`, `search_pro_sogou`, and `search_pro_quark`; custom values remain allowed for future services.
-- `TAVILY_API_URL` affects Tavily only. It does not proxy Zhipu. For Tavily Hikari / pooled endpoints, use `https://<host>/api/tavily`; setup normalizes root-host or `/mcp` inputs to that REST base.
+- `TAVILY_API_URL` affects Tavily only. For Tavily Hikari / pooled endpoints, use `https://<host>/api/tavily`; setup normalizes root-host or `/mcp` inputs to that REST base.
 - `FIRECRAWL_API_URL` defaults to `https://api.firecrawl.dev/v2`.
 
 Non-interactive setup example:
@@ -240,7 +237,6 @@ smart-search setup --non-interactive `
   --firecrawl-key "your-firecrawl-key"
 ```
 
-For explicit legacy Zhipu compatibility only, `smart-search setup --non-interactive --zhipu-key "your-zhipu-key" --zhipu-api-url "https://open.bigmodel.cn/api" --zhipu-search-engine "search_pro_sogou"` still saves the deprecated manual route.
 
 Minimum profile defaults to `standard`, requiring at least:
 
@@ -277,7 +273,6 @@ Provider timeouts:
 | `map` | `m` | Map a website structure |
 | `exa-search` | `exa`, `x` | Exa source discovery |
 | `exa-similar` | `xs` | Similar pages from one URL |
-| `zhipu-search` | `z`, `zp` | **DEPRECATED** — removed in 0.2.0; legacy Zhipu Web Search API |
 | `context7-library` | `c7`, `ctx7` | Resolve Context7 library candidates |
 | `context7-docs` | `c7d`, `c7docs`, `ctx7-docs` | Fetch Context7 docs |
 | `doctor` | `d` | Masked config and connectivity check |
@@ -399,6 +394,24 @@ GitHub Actions runs the same gates on `ubuntu-latest` and `windows-latest` (`.gi
 
 ## Latest stable release notes
 
+### v0.2.0
+
+Breaking cleanup: remove Zhipu Web Search as a supported path.
+
+- Remove `zhipu-search` CLI command and aliases `z` / `zp`.
+- Remove `providers/zhipu.py` and all `ZHIPU_*` configuration keys from setup/doctor/config.
+- Remove research_discovery / routing / provider-profile zhipu branches.
+- Docs and skill assets no longer document Zhipu as a supported provider.
+- Legacy `ZHIPU_*` keys left in an old `config.json` are ignored (no crash).
+
+Upgrade:
+
+```bash
+npm install -g @blxzer/smart-search@0.2.0
+# or
+pip install -U smart-search
+```
+
 ### v0.1.15
 
 Six-phase optimization roadmap release — quality, modularization, performance, observability, CI, plus post-roadmap TTL cache and `zhipu-search` deprecation cycle.
@@ -450,21 +463,11 @@ Release closeout checklist:
 4. Do a machine-readable gap check: expected beta versions minus npm versions must be empty, and expected `v*beta*` releases minus GitHub prereleases must be empty.
 5. Install the selected test build explicitly, for example `mise use -g "npm:@blxzer/smart-search@0.1.15" -y --pin`, then run `mise reshim`, `where.exe smart-search`, `smart-search --version`, `smart-search doctor --format json`, and a non-ASCII JSON pipe such as `smart-search search "深度搜索一下最近的比特币行情" --format json | ConvertFrom-Json`.
 
-## Deprecation notices
+## Removed in 0.2.0
 
-### `zhipu-search` CLI command (deprecated; removal scheduled)
-
-The `zhipu-search` subcommand (aliases `z`, `zp`) and the underlying `providers/zhipu.py` route are **deprecated** and no longer used by default `search` or `research` routing. They remain available only for explicit legacy compatibility.
-
-Removal schedule:
-
-| Version | Action |
-|---------|--------|
-| 0.1.x (current) | Deprecation warning to stderr on every `zhipu-search` invocation; `doctor` reports `deprecated` status; docs mark the command as deprecated. No code removed. |
-| 0.2.0 (next minor) | Remove the `zhipu-search` CLI subcommand and the `research_discovery` zhipu branch. |
-| 1.0.0 (next major) | Remove `providers/zhipu.py` and all `ZHIPU_*` configuration keys. |
-
-Migration: use `search` (Tavily / Firecrawl bilingual discovery) or `research` (full Deep Research) instead.
+- `zhipu-search` (aliases `z`, `zp`), `providers/zhipu.py`, and all `ZHIPU_*` config keys are removed.
+- Old `config.json` entries with `ZHIPU_*` are ignored and do not crash startup.
+- Migration: use `search` (Tavily / Firecrawl bilingual discovery) or `research`.
 
 ## Community
 

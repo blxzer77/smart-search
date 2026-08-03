@@ -50,7 +50,6 @@ def test_each_subcommand_help_exits_successfully(capsys):
         ["map", "--help"],
         ["exa-search", "--help"],
         ["exa-similar", "--help"],
-        ["zhipu-search", "--help"],
         ["context7-library", "--help"],
         ["context7-docs", "--help"],
         ["doctor", "--help"],
@@ -84,8 +83,6 @@ def test_command_aliases_parse_to_canonical_commands():
         (["exa", "query"], "exa-search"),
         (["x", "query"], "exa-search"),
         (["xs", "https://example.com"], "exa-similar"),
-        (["z", "query"], "zhipu-search"),
-        (["zp", "query"], "zhipu-search"),
         (["c7", "react"], "context7-library"),
         (["ctx7", "react"], "context7-library"),
         (["c7d", "/facebook/react", "hooks"], "context7-docs"),
@@ -335,7 +332,6 @@ def test_doctor_markdown_outputs_human_health_report(monkeypatch, capsys):
             "tavily_connection_test": {"status": "ok", "message": "Tavily ok", "response_time_ms": 22.2},
             "jina_connection_test": {"status": "ok", "message": "Jina ok", "response_time_ms": 10.0},
             "firecrawl_connection_test": {"status": "configured", "message": "key configured"},
-            "zhipu_connection_test": {"status": "warning", "message": "HTTP 429"},
             "context7_connection_test": {"status": "not_configured", "message": "missing"},
         }
 
@@ -850,9 +846,6 @@ def test_provider_markdown_outputs_result_lists(monkeypatch, capsys):
     async def fake_exa_similar(*args, **kwargs):
         return {"ok": True, "url": "https://source.example.com", "results": [{"title": "Similar", "url": "https://similar.example.com"}]}
 
-    async def fake_zhipu_search(*args, **kwargs):
-        return {"ok": True, "query": "news", "provider": "zhipu", "results": [{"title": "News", "url": "https://news.example.com", "description": "desc"}]}
-
     async def fake_context7_library(*args, **kwargs):
         return {"ok": True, "query": "react", "provider": "context7", "results": [{"id": "/facebook/react", "title": "React", "description": "docs"}]}
 
@@ -861,14 +854,12 @@ def test_provider_markdown_outputs_result_lists(monkeypatch, capsys):
 
     monkeypatch.setattr(cli.service, "exa_search", fake_exa_search)
     monkeypatch.setattr(cli.service, "exa_find_similar", fake_exa_similar)
-    monkeypatch.setattr(cli.service, "zhipu_search", fake_zhipu_search)
     monkeypatch.setattr(cli.service, "context7_library", fake_context7_library)
     monkeypatch.setattr(cli.service, "map_site", fake_map_site)
 
     cases = [
         (["exa-search", "query", "--format", "markdown"], "Example", "https://example.com"),
         (["exa-similar", "https://source.example.com", "--format", "markdown"], "Similar", "https://similar.example.com"),
-        (["zhipu-search", "news", "--format", "markdown"], "News", "https://news.example.com"),
         (["context7-library", "react", "--format", "markdown"], "React", "/facebook/react"),
         (["map", "https://docs.example.com", "--format", "markdown"], "https://docs.example.com/api", "Site Map"),
     ]
@@ -920,9 +911,6 @@ def test_all_formatted_commands_have_non_json_markdown(monkeypatch):
     async def fake_exa(*args, **kwargs):
         return {"ok": True, "results": [{"title": "Example", "url": "https://example.com"}]}
 
-    async def fake_zhipu(*args, **kwargs):
-        return {"ok": True, "results": [{"title": "News", "url": "https://news.example.com"}]}
-
     async def fake_c7_library(*args, **kwargs):
         return {"ok": True, "results": [{"id": "/lib", "title": "Library"}]}
 
@@ -952,7 +940,6 @@ def test_all_formatted_commands_have_non_json_markdown(monkeypatch):
     monkeypatch.setattr(cli.service, "map_site", fake_map)
     monkeypatch.setattr(cli.service, "exa_search", fake_exa)
     monkeypatch.setattr(cli.service, "exa_find_similar", fake_exa)
-    monkeypatch.setattr(cli.service, "zhipu_search", fake_zhipu)
     monkeypatch.setattr(cli.service, "context7_library", fake_c7_library)
     monkeypatch.setattr(cli.service, "context7_docs", fake_c7_docs)
     monkeypatch.setattr(cli.service, "doctor", fake_doctor)
@@ -968,7 +955,6 @@ def test_all_formatted_commands_have_non_json_markdown(monkeypatch):
         ("map", ["map", "https://example.com", "--format", "markdown"]),
         ("exa-search", ["exa-search", "query", "--format", "markdown"]),
         ("exa-similar", ["exa-similar", "https://example.com", "--format", "markdown"]),
-        ("zhipu-search", ["zhipu-search", "query", "--format", "markdown"]),
         ("context7-library", ["context7-library", "react", "--format", "markdown"]),
         ("context7-docs", ["context7-docs", "/lib", "hooks", "--format", "markdown"]),
         ("research", ["research", "query", "--format", "markdown"]),
@@ -988,7 +974,6 @@ def test_all_formatted_commands_have_non_json_markdown(monkeypatch):
             "map": {"ok": True, "results": ["https://example.com/api"]},
             "exa-search": {"ok": True, "results": [{"title": "Example", "url": "https://example.com"}]},
             "exa-similar": {"ok": True, "results": [{"title": "Example", "url": "https://example.com"}]},
-            "zhipu-search": {"ok": True, "results": [{"title": "News", "url": "https://news.example.com"}]},
             "context7-library": {"ok": True, "results": [{"id": "/lib", "title": "Library"}]},
             "context7-docs": {"ok": True, "library_id": "/lib", "query": "hooks", "content": "Docs"},
             "research": {"ok": True, "question": "q", "content": "Research", "final_answer": "Research", "citations": [], "gap_check": {"gaps": []}},
@@ -1041,12 +1026,6 @@ def test_setup_non_interactive_saves_values(monkeypatch, capsys):
         "auto",
         "--minimum-profile",
         "standard",
-        "--zhipu-key",
-        "zhipu-secret",
-        "--zhipu-api-url",
-        "zhipu.example.com/api",
-        "--zhipu-search-engine",
-        "search_pro",
         "--jina-key",
         "jina-secret",
         "--jina-reader-api-url",
@@ -1076,9 +1055,6 @@ def test_setup_non_interactive_saves_values(monkeypatch, capsys):
     assert saved["SMART_SEARCH_VALIDATION_LEVEL"] == "balanced"
     assert saved["SMART_SEARCH_FALLBACK_MODE"] == "auto"
     assert saved["SMART_SEARCH_MINIMUM_PROFILE"] == "standard"
-    assert saved["ZHIPU_API_KEY"] == "zhipu-secret"
-    assert saved["ZHIPU_API_URL"] == "https://zhipu.example.com/api"
-    assert saved["ZHIPU_SEARCH_ENGINE"] == "search_pro"
     assert saved["JINA_API_KEY"] == "jina-secret"
     assert saved["JINA_READER_API_URL"] == "https://r.jina.ai"
     assert saved["JINA_RESPOND_WITH"] == "readerlm-v2"
@@ -1174,30 +1150,6 @@ def test_tavily_hikari_prompt_shows_beginner_url_example(monkeypatch, capsys):
     assert "api/tavily" in captured.err
 
 
-def test_zhipu_prompt_saves_official_api_url_and_search_engine(monkeypatch):
-    values = {}
-    selections = iter(["official", "search_pro_sogou"])
-
-    monkeypatch.setattr(cli, "_prompt_select", lambda message, choices, default: next(selections))
-
-    cli._prompt_zhipu_api_url(values, {}, "zh")
-    cli._prompt_zhipu_search_engine(values, {}, "zh")
-
-    assert values["ZHIPU_API_URL"] == "https://open.bigmodel.cn/api"
-    assert values["ZHIPU_SEARCH_ENGINE"] == "search_pro_sogou"
-
-
-def test_zhipu_prompt_allows_custom_search_engine(monkeypatch):
-    values = {}
-    selections = iter(["custom"])
-
-    monkeypatch.setattr(cli, "_prompt_select", lambda message, choices, default: next(selections))
-    monkeypatch.setattr(cli, "_prompt_value", lambda *args, **kwargs: "search_future")
-
-    cli._prompt_zhipu_search_engine(values, {}, "en")
-
-    assert values["ZHIPU_SEARCH_ENGINE"] == "search_future"
-
 
 def test_setup_guided_zh_groups_minimum_capabilities(monkeypatch, capsys):
     saved = {}
@@ -1239,7 +1191,7 @@ def test_setup_guided_zh_groups_minimum_capabilities(monkeypatch, capsys):
     assert "relay-test-secret" not in captured.out
 
 
-def test_setup_guided_does_not_prompt_zhipu_by_default(monkeypatch, capsys):
+def test_setup_guided_mentions_tavily_firecrawl_not_removed_provider(monkeypatch, capsys):
     saved = {}
     answers = iter(["skip", "skip", "skip", "n"])
 
@@ -1247,24 +1199,19 @@ def test_setup_guided_does_not_prompt_zhipu_by_default(monkeypatch, capsys):
         saved[key] = value
         return {"ok": True, "key": key, "value": "***", "config_file": "C:/tmp/config.json"}
 
-    def fail_getpass(prompt):
-        raise AssertionError("guided setup must not prompt for Zhipu by default")
-
     monkeypatch.setattr(cli.service, "config_set", fake_config_set)
     monkeypatch.setattr(cli.service, "config_path", lambda: {"ok": True, "config_file": "C:/tmp/config.json"})
     monkeypatch.setattr(cli.service, "config_list", lambda show_secrets=False: {"ok": True, "values": saved.copy()})
     monkeypatch.setattr("builtins.input", lambda prompt: next(answers))
-    monkeypatch.setattr(cli.getpass, "getpass", fail_getpass)
+    monkeypatch.setattr(cli.getpass, "getpass", lambda prompt: "")
 
     code = cli.main(["setup", "--lang", "zh"])
     captured = capsys.readouterr()
 
     assert code == cli.EXIT_OK
-    assert "ZHIPU_API_KEY" not in saved
-    assert "ZHIPU_API_URL" not in saved
-    assert "ZHIPU_SEARCH_ENGINE" not in saved
-    assert "Zhipu 已弃用为默认路径" in captured.err
-    assert "智谱搜索服务" not in captured.err
+    assert "ZHIPU" not in captured.err
+    assert "智谱" not in captured.err
+    assert "Tavily" in captured.err or "tavily" in captured.err.lower()
 
 
 def test_setup_guided_uses_tui_defaults_for_configured_providers(monkeypatch, capsys):
@@ -1422,20 +1369,17 @@ def test_search_passes_routing_options(monkeypatch, capsys):
         "--fallback",
         "off",
         "--providers",
-        "grok,zhipu",
+        "tavily,firecrawl",
     ])
 
     assert code == cli.EXIT_OK
-    assert captured == {"validation": "strict", "fallback": "off", "providers": "grok,zhipu"}
+    assert captured == {"validation": "strict", "fallback": "off", "providers": "tavily,firecrawl"}
     assert json.loads(capsys.readouterr().out)["content"] == "Answer"
 
 
 def test_provider_aliases_use_canonical_commands(monkeypatch, capsys):
     async def fake_exa_search(*args, **kwargs):
         return {"ok": True, "provider": "exa"}
-
-    async def fake_zhipu_search(*args, **kwargs):
-        return {"ok": True, "provider": "zhipu"}
 
     async def fake_context7_library(*args, **kwargs):
         return {"ok": True, "provider": "context7-library"}
@@ -1447,15 +1391,12 @@ def test_provider_aliases_use_canonical_commands(monkeypatch, capsys):
         return {"ok": True, "query_mode": "research", "content": "Research"}
 
     monkeypatch.setattr(cli.service, "exa_search", fake_exa_search)
-    monkeypatch.setattr(cli.service, "zhipu_search", fake_zhipu_search)
     monkeypatch.setattr(cli.service, "context7_library", fake_context7_library)
     monkeypatch.setattr(cli.service, "context7_docs", fake_context7_docs)
     monkeypatch.setattr(cli.service, "research", fake_research)
 
     assert cli.main(["exa", "query"]) == cli.EXIT_OK
     assert json.loads(capsys.readouterr().out)["provider"] == "exa"
-    assert cli.main(["z", "query"]) == cli.EXIT_OK
-    assert json.loads(capsys.readouterr().out)["provider"] == "zhipu"
     assert cli.main(["c7", "react"]) == cli.EXIT_OK
     assert json.loads(capsys.readouterr().out)["provider"] == "context7-library"
     assert cli.main(["c7docs", "/facebook/react", "hooks"]) == cli.EXIT_OK
@@ -1539,7 +1480,6 @@ def test_setup_advanced_mode_keeps_low_level_prompts(monkeypatch, capsys):
     captured = capsys.readouterr()
     assert "Legacy primary API URL optional" not in captured.err
     assert "OpenAI-compatible API URL optional" in captured.err
-    assert "Zhipu Web Search API URL optional" in captured.err
-    assert "Zhipu search service" in captured.err
+    assert "Zhipu" not in captured.err
     assert "Advanced mode" in captured.err
 

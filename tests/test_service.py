@@ -18,10 +18,6 @@ def _reset_config(monkeypatch, tmp_path):
         "OPENAI_COMPATIBLE_STREAM",
         "EXA_API_KEY",
         "EXA_BASE_URL",
-        "ZHIPU_API_KEY",
-        "ZHIPU_API_URL",
-        "ZHIPU_SEARCH_ENGINE",
-        "ZHIPU_TIMEOUT_SECONDS",
         "JINA_API_KEY",
         "JINA_READER_API_URL",
         "JINA_RESPOND_WITH",
@@ -178,7 +174,6 @@ def test_deep_research_plan_current_market_is_offline_and_fetch_before_claim(mon
     monkeypatch.setattr(service, "search", should_not_run_provider)
     monkeypatch.setattr(service, "fetch", should_not_run_provider)
     monkeypatch.setattr(service, "exa_search", should_not_run_provider)
-    monkeypatch.setattr(service, "zhipu_search", should_not_run_provider)
 
     result = service.build_deep_research_plan(
         "深度搜索一下最近的比特币行情",
@@ -195,7 +190,6 @@ def test_deep_research_plan_current_market_is_offline_and_fetch_before_claim(mon
     assert result["preflight"]["executed_during_planning"] is False
     tools = {step["tool"] for step in result["steps"]}
     assert {"search", "fetch"} <= tools
-    assert "zhipu-search" not in tools
     assert "exa-search" not in tools
     assert tools <= service.DEEP_ALLOWED_TOOLS
     assert all(step["subquestion_id"] for step in result["steps"])
@@ -310,13 +304,11 @@ def test_research_router_prefers_context7_for_docs(monkeypatch):
 def test_research_router_uses_bilingual_web_search_for_chinese_current_policy(monkeypatch):
     _configure_research_minimum(monkeypatch)
     monkeypatch.setenv("FIRECRAWL_API_KEY", "firecrawl-secret")
-    monkeypatch.setenv("ZHIPU_API_KEY", "zhipu-secret")
 
     routes = service._research_capability_routes("今天国内 AI 政策最新公告", _research_plan("今天国内 AI 政策最新公告"), "auto")
 
     assert routes["signals"]["current_or_locale_intent"] is True
     assert routes["capabilities"]["web_search"]["providers"] == ["tavily", "firecrawl"]
-    assert "zhipu" not in routes["capabilities"]["web_search"]["providers"]
     assert "bilingual" in routes["capabilities"]["web_search"]["reason"]
 
 
@@ -330,7 +322,7 @@ def test_research_router_favors_jina_for_known_url_pdf_and_firecrawl_for_dynamic
 
 def test_research_overrides_cannot_move_provider_across_capability(monkeypatch):
     _configure_research_minimum(monkeypatch)
-    monkeypatch.setenv("SMART_SEARCH_RESEARCH_PREFERRED_PROVIDERS", "jina,zhipu,unknown-provider")
+    monkeypatch.setenv("SMART_SEARCH_RESEARCH_PREFERRED_PROVIDERS", "jina,unknown-provider")
     monkeypatch.setenv("SMART_SEARCH_RESEARCH_DISABLED_PROVIDERS", "tavily")
 
     routes = service._research_capability_routes("今天国内 AI 新闻", _research_plan("今天国内 AI 新闻"), "auto")
@@ -387,7 +379,6 @@ async def test_research_executes_staged_evidence_only_workflow(monkeypatch, tmp_
     assert len(result["citations"]) >= 2
     assert "Fetched body" in result["final_answer"]
     assert "tavily" in [attempt["provider"] for attempt in result["provider_attempts"]]
-    assert "zhipu" not in [attempt["provider"] for attempt in result["provider_attempts"]]
     assert (tmp_path / "summary.json").exists()
 
 
@@ -514,38 +505,26 @@ def test_legacy_main_search_config_keys_are_ignored_from_saved_config(monkeypatc
     assert "*" in saved["OPENAI_COMPATIBLE_API_KEY"]
 
 
-@pytest.mark.asyncio
-async def test_zhipu_search_uses_configured_engine_and_command_override(monkeypatch, tmp_path):
-    _reset_config(monkeypatch, tmp_path)
-    service.config_set("ZHIPU_API_KEY", "zhipu-test-secret")
-    service.config_set("ZHIPU_API_URL", "https://zhipu.example.com/api")
-    service.config_set("ZHIPU_SEARCH_ENGINE", "search_pro")
-    calls = []
+def test_legacy_zhipu_keys_in_config_file_are_ignored(monkeypatch, tmp_path):
+    fake_config_file = _reset_config(monkeypatch, tmp_path)
+    service.config._save_config_file(
+        {
+            "ZHIPU_API_KEY": "stale-secret",
+            "ZHIPU_API_URL": "https://open.bigmodel.cn/api",
+            "ZHIPU_SEARCH_ENGINE": "search_pro",
+            "TAVILY_API_KEY": "tavily-secret",
+        }
+    )
 
-    class FakeZhipuProvider:
-        def __init__(self, api_url, api_key, search_engine, timeout):
-            self.api_url = api_url
-            self.api_key = api_key
-            self.search_engine = search_engine
-            self.timeout = timeout
-            calls.append({"init_engine": search_engine, "api_url": api_url})
+    saved = service.config_list(show_secrets=True)["values"]
+    doctor = service.config.get_config_info()
 
-        async def search(self, **kwargs):
-            calls[-1]["call_engine"] = kwargs.get("search_engine")
-            engine = kwargs.get("search_engine") or self.search_engine
-            return json.dumps({"ok": True, "search_engine": engine, "results": [], "elapsed_ms": 1})
-
-    monkeypatch.setattr(service, "ZhipuWebSearchProvider", FakeZhipuProvider)
-
-    configured_result = await service.zhipu_search("test")
-    override_result = await service.zhipu_search("test", search_engine="search_pro_quark")
-
-    assert configured_result["search_engine"] == "search_pro"
-    assert override_result["search_engine"] == "search_pro_quark"
-    assert calls == [
-        {"init_engine": "search_pro", "api_url": "https://zhipu.example.com/api", "call_engine": None},
-        {"init_engine": "search_pro_quark", "api_url": "https://zhipu.example.com/api", "call_engine": "search_pro_quark"},
-    ]
+    assert "ZHIPU_API_KEY" not in saved
+    assert "ZHIPU_API_URL" not in saved
+    assert "ZHIPU_SEARCH_ENGINE" not in saved
+    assert saved["TAVILY_API_KEY"] == "tavily-secret"
+    assert "ZHIPU_API_KEY" not in doctor
+    assert fake_config_file.exists()
 
 
 @pytest.mark.asyncio

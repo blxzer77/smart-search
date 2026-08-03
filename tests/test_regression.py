@@ -84,7 +84,6 @@ def test_deep_research_skill_contract_public_and_packaged_assets_match():
         "provider advantage routing",
         "`search --validation strict` uses the same bilingual web_search policy as balanced mode",
         "`search` runs bilingual web_search source discovery through Tavily / Firecrawl when configured",
-        "Zhipu is deprecated from default routing",
         "Docs/API/library routing stays explicit keyword intent-based",
     ]
     for marker in required_markers:
@@ -220,8 +219,6 @@ def test_readme_language_split_and_provider_links_are_documented():
         "https://docs.exa.ai/",
         "https://dashboard.exa.ai/api-keys",
         "https://context7.com/docs",
-        "https://docs.bigmodel.cn/cn/guide/tools/web-search",
-        "https://open.bigmodel.cn/usercenter/apikeys",
         "https://docs.tavily.com/",
         "https://app.tavily.com/home",
         "https://docs.firecrawl.dev/",
@@ -282,7 +279,6 @@ def test_search_routing_contract_documents_bilingual_web_search_policy():
         "Strict queries without primary, docs, fetch, or explicit source evidence",
         "source-first commands such as `exa-search`",
         "Docs supplemental routing stays keyword-based for explicit docs/API/library/framework intent",
-        "Zhipu is retained only as a deprecated manual compatibility command",
         "`extra_sources` are explicit discovery candidates from `--extra-sources N`, which defaults to `0`",
     ]
     for marker in english_markers:
@@ -294,7 +290,6 @@ def test_search_routing_contract_documents_bilingual_web_search_policy():
         "strict 查询仍可能返回 `evidence_error`",
         "`--extra-sources N`",
         "docs 补强继续保持显式 docs/API/库/框架关键词触发",
-        "智谱只保留为 deprecated 手动兼容命令",
         "默认是 `0`",
     ]
     for marker in zh_markers:
@@ -303,7 +298,6 @@ def test_search_routing_contract_documents_bilingual_web_search_policy():
     shipped_markers = [
         "`search --validation strict` uses the same bilingual web_search policy as balanced mode",
         "`search` runs bilingual web_search source discovery through Tavily / Firecrawl when configured",
-        "Zhipu is deprecated from default routing",
         "explicit keyword-based docs/API/library/framework intent",
         "default `extra_sources` is `0`",
     ]
@@ -314,54 +308,32 @@ def test_search_routing_contract_documents_bilingual_web_search_policy():
         assert marker in packaged_contract
 
 
-def test_zhipu_setup_contract_public_and_packaged_assets_match():
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    readme_zh = (ROOT / "README.zh-CN.md").read_text(encoding="utf-8")
+def test_zhipu_fully_removed_from_runtime_and_shipped_contracts():
+    """Guard: zhipu CLI/config/provider surface must stay gone after 0.2.0."""
+    from smart_search import cli
+
+    parser = cli.build_parser()
+    help_text = parser.format_help()
+    assert "zhipu-search" not in help_text
+    assert "--zhipu-key" not in help_text
+
     public_text = _read_skill_tree(PUBLIC_SKILL_DIR)
     packaged_text = _read_skill_tree(PACKAGED_SKILL_DIR)
     public_contract = (PUBLIC_SKILL_DIR / "references" / "cli-contract.md").read_text(encoding="utf-8")
     packaged_contract = (PACKAGED_SKILL_DIR / "references" / "cli-contract.md").read_text(encoding="utf-8")
-    required_markers = [
+    forbidden = [
+        "zhipu-search",
+        "--zhipu-key",
         "--zhipu-api-url",
         "--zhipu-search-engine",
+        "ZHIPU_API_KEY",
         "ZHIPU_API_URL",
         "ZHIPU_SEARCH_ENGINE",
-        "search_std",
-        "search_pro",
-        "search_pro_sogou",
-        "search_pro_quark",
-        "Web Search API",
-        "TAVILY_API_URL",
-        "does not proxy Zhipu",
-        "not Zhipu Chat Completions",
-        "not the MCP Server",
-        "deprecated manual compatibility",
-        "not used by default routing",
+        "ZHIPU_TIMEOUT_SECONDS",
     ]
-    for marker in required_markers:
-        assert marker in readme
-        assert marker in public_text
-        assert marker in packaged_text
-    zh_required_markers = [
-        "--zhipu-api-url",
-        "--zhipu-search-engine",
-        "ZHIPU_API_URL",
-        "ZHIPU_SEARCH_ENGINE",
-        "search_std",
-        "search_pro",
-        "search_pro_sogou",
-        "search_pro_quark",
-        "Web Search API",
-        "TAVILY_API_URL",
-        "不会代理智谱",
-        "不是 Chat Completions",
-        "不是 MCP Server",
-    ]
-    for marker in zh_required_markers:
-        assert marker in readme_zh
-    for marker in ["--zhipu-api-url", "--zhipu-search-engine"]:
-        assert marker in public_contract
-        assert marker in packaged_contract
+    for corpus in (public_text, packaged_text, public_contract, packaged_contract):
+        for token in forbidden:
+            assert token not in corpus, f"zhipu token leaked into skill assets: {token}"
 
 
 def test_jina_contract_public_and_packaged_assets_match():
@@ -451,54 +423,34 @@ def test_deleted_features_absent_from_shipped_assets():
         assert token not in corpus, f"deleted-feature reference leaked into shipped docs/assets: {token}"
 
 
-def test_zhipu_search_cli_emits_deprecation_warning(monkeypatch, capsys):
-    """Regression: `zhipu-search` invocation must emit a [DEPRECATED] stderr marker."""
+def test_zhipu_search_command_is_unknown(capsys):
+    """Regression: `zhipu-search` is removed; CLI reports unknown/invalid command."""
     from smart_search import cli
+    import pytest
 
-    async def fake_zhipu_search(*args, **kwargs):
-        return {"ok": True, "results": [], "deprecated": True}
-
-    monkeypatch.setattr(cli.service, "zhipu_search", fake_zhipu_search)
-
-    argv = [
-        "zhipu-search", "test query",
-        "--count", "3",
-        "--format", "json",
-    ]
-
-    rc = cli.main(argv)
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main(["zhipu-search", "test query", "--format", "json"])
+    assert excinfo.value.code not in (0, None)
     captured = capsys.readouterr()
-    assert rc == 0
-    assert "[DEPRECATED]" in captured.err
-    assert "0.2.0" in captured.err
+    combined = (captured.out + captured.err).lower()
+    assert "invalid" in combined or "unrecognized" in combined or "error" in combined or "choose from" in combined
 
 
-def test_zhipu_search_help_text_marks_deprecated(capsys):
-    """Regression: `zhipu-search --help` must surface the DEPRECATED marker."""
-    from smart_search import cli
-
-    parser = cli.build_parser()
-    try:
-        parser.parse_args(["zhipu-search", "--help"])
-    except SystemExit:
-        pass
-    captured = capsys.readouterr()
-    assert "DEPRECATED" in captured.out or "DEPRECATED" in captured.err
-
-
-def test_readme_documents_zhipu_deprecation_schedule():
-    """Regression: README must document the zhipu-search deprecation schedule."""
+def test_readme_documents_zhipu_removal_in_0_2_0():
+    """Regression: README must document the 0.2.0 zhipu removal."""
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     readme_zh = (ROOT / "README.zh-CN.md").read_text(encoding="utf-8")
 
-    for text, label in [(readme, "README.md"), (readme_zh, "README.zh-CN.md")]:
-        assert "Deprecation" in text or "deprecation" in text.lower(), f"{label} missing deprecation section"
-        assert "0.2.0" in text, f"{label} missing 0.2.0 removal target"
-        assert "zhipu-search" in text, f"{label} missing zhipu-search reference"
+    assert "### v0.2.0" in readme
+    assert "Removed in 0.2.0" in readme
+    assert "zhipu-search" in readme
+    assert "### v0.2.0" in readme_zh
+    assert "0.2.0 已移除" in readme_zh
+    assert "zhipu-search" in readme_zh
 
 
-def test_cli_contract_marks_zhipu_search_deprecated():
-    """Regression: packaged cli-contract.md must mark zhipu-search DEPRECATED."""
+def test_cli_contract_has_no_zhipu_search_surface():
+    """Regression: packaged cli-contract.md must not document zhipu-search."""
     contract = (PACKAGED_SKILL_DIR / "references" / "cli-contract.md").read_text(encoding="utf-8")
-    assert "DEPRECATED" in contract
-    assert "zhipu-search" in contract
+    assert "zhipu-search" not in contract
+    assert "ZHIPU_API_KEY" not in contract

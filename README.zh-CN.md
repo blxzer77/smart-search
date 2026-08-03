@@ -88,7 +88,7 @@ smart-search research "深度搜索一下最近的比特币行情" --budget deep
 | --- | --- | --- | --- |
 | `main_search` | `search` | xAI Responses **或** OpenAI-compatible Chat Completions（用户二选一；两者都配置时由 `SMART_SEARCH_MAIN_SEARCH_ROUTE` 决定优先级） | 综合回答、快速搜索、初步总结 |
 | `docs_search` | `context7-library`、`context7-docs`、`exa-search` | Context7、Exa | 官方文档、SDK、API、框架/库文档 |
-| `web_search` | `search` 内部中英双语来源发现；`zhipu-search` 仅作 deprecated 手动兼容 | Tavily、Firecrawl；智谱 Web Search API 仅在显式请求时使用 | 每个常规研究问题都做中文和英文网页来源发现 |
+| `web_search` | `search` 内部中英双语来源发现 | Tavily、Firecrawl | 每个常规研究问题都做中文和英文网页来源发现 |
 | `web_fetch` | `fetch` | Tavily、Jina Reader、Firecrawl | 已知 URL 正文抓取、证据提取 |
 | `site_map` | `map` | Tavily | 文档站、产品站、目录型站点结构 |
 | `research_executor` | `research` / `rs` | 按 capability 注册的 provider | live 深度研究执行：规划、发现、抓取/读取、gap check、仅基于证据综合 |
@@ -99,7 +99,7 @@ smart-search research "深度搜索一下最近的比特币行情" --budget deep
 | --- | --- |
 | `main_search` | 由 `SMART_SEARCH_MAIN_SEARCH_ROUTE` 排序；默认 `xAI Responses -> OpenAI-compatible` |
 | `docs_search` | Context7 处理库/API/文档意图；Exa 处理官方域名、论文、产品页、可信站点发现 |
-| `web_search` | Tavily -> Firecrawl；智谱仅在显式选择 deprecated legacy 命令时使用 |
+| `web_search` | Tavily -> Firecrawl |
 | `web_fetch` | Tavily -> 带 `JINA_API_KEY` 的 Jina Reader -> Firecrawl |
 
 Jina Reader 只属于 `web_fetch`，不是通用搜索 provider。只有配置 `JINA_API_KEY` 后，它才可以满足 `SMART_SEARCH_MINIMUM_PROFILE=standard`；匿名 `r.jina.ai` 只能当显式/实验抓取能力，不能让最低配置检查放松。
@@ -122,7 +122,7 @@ Jina Reader 只属于 `web_fetch`，不是通用搜索 provider。只有配置 `
 
 `extra_sources` 是通过 `--extra-sources N` 显式请求的候选来源，默认是 `0`，不等于自动事实校验。新闻、政策、财经、医疗、严肃评测、工具选型等高风险问题，建议先发现来源，再 `fetch` 关键网页正文，最后只基于抓到的正文写结论。
 
-搜索引擎选择速记：先用 `search` 做中英双语宽泛探索和综合；想让 CLI 执行完整证据流时用 `research`；库/API/框架文档优先用 Context7；官方域名、论文、产品页、可信站点和低噪声发现再用 Exa；Tavily/Firecrawl 负责双语网页发现和 URL/页面证据；Jina 用于已知 URL 正文抓取。智谱只保留为 deprecated 手动兼容命令，不再作为默认路径。
+搜索引擎选择速记：先用 `search` 做中英双语宽泛探索和综合；想让 CLI 执行完整证据流时用 `research`；库/API/框架文档优先用 Context7；官方域名、论文、产品页、可信站点和低噪声发现再用 Exa；Tavily/Firecrawl 负责双语网页发现和 URL/页面证据；Jina 用于已知 URL 正文抓取。
 
 ## Deep Research 深度搜索
 
@@ -179,7 +179,7 @@ search, exa-search, exa-similar, context7-library, context7-docs, fetch, map
 `research` 的路由是 capability-first 加 provider 优势：
 
 - Context7 优先处理库/API/框架文档，Exa 用于官方域名、论文、产品页、可信站点和低噪声发现。
-- Tavily / Firecrawl 负责中英双语宽泛来源发现。智谱已从默认路由弃用，除非显式请求 legacy 命令，否则不会用于中文、时效、国内搜索。
+- Tavily / Firecrawl 负责中英双语宽泛来源发现。
 - Jina 优先用于已知公开 URL、PDF、arXiv 正文抽取；ReaderLM-v2 仍要求 `JINA_API_KEY`。
 - Firecrawl 优先用于 JS-heavy、动态页面、浏览器式抽取、OCR/PDF 或强兜底抓取。
 
@@ -206,7 +206,6 @@ smart-search research "https://example.com/source" --format json
 | OpenAI-compatible Chat Completions | 主搜索，适合 OpenAI 官方或兼容中转 | `OPENAI_COMPATIBLE_API_URL`、`OPENAI_COMPATIBLE_API_KEY`、`OPENAI_COMPATIBLE_MODEL`、`OPENAI_COMPATIBLE_STREAM` | [OpenAI platform docs](https://platform.openai.com/docs) | [OpenAI API keys](https://platform.openai.com/api-keys) 或你的兼容服务商 |
 | Exa | 官方文档、API、论文、产品页、可信网页的低噪声发现 | `EXA_API_KEY` | [Exa docs](https://docs.exa.ai/) | [Exa API keys](https://dashboard.exa.ai/api-keys) |
 | Context7 | SDK、库、框架、API 文档兜底 | `CONTEXT7_API_KEY`、`CONTEXT7_BASE_URL` | [Context7 docs](https://context7.com/docs) | [Context7](https://context7.com/) |
-| 智谱 Web Search API | 仅用于 deprecated 手动 `zhipu-search` 兼容；不参与默认路由 | `ZHIPU_API_KEY`、`ZHIPU_API_URL`、`ZHIPU_SEARCH_ENGINE` | [智谱联网搜索文档](https://docs.bigmodel.cn/cn/guide/tools/web-search) | [智谱 API keys](https://open.bigmodel.cn/usercenter/apikeys) |
 | Tavily | 额外来源、URL fetch、站点 map | `TAVILY_API_URL`、`TAVILY_API_KEY` | [Tavily docs](https://docs.tavily.com/) | [Tavily app](https://app.tavily.com/home) |
 | Jina Reader | 已知 URL 正文抓取；满足 standard 最低配置必须有 key | `JINA_API_KEY`、`JINA_READER_API_URL`、`JINA_RESPOND_WITH`、`JINA_TIMEOUT_SECONDS` | [Jina Reader](https://jina.ai/reader/) | [Jina AI](https://jina.ai/) |
 | Firecrawl | fetch 兜底、补充网页来源 | `FIRECRAWL_API_URL`、`FIRECRAWL_API_KEY` | [Firecrawl docs](https://docs.firecrawl.dev/) | [Firecrawl API keys](https://www.firecrawl.dev/app/api-keys) |
@@ -217,11 +216,9 @@ smart-search research "https://example.com/source" --format json
 - OpenAI-compatible 兼容中转/网关走 Chat Completions `/chat/completions`，只通过 `OPENAI_COMPATIBLE_*` 配置。
 - `OPENAI_COMPATIBLE_STREAM=true` 或 `smart-search search --stream` 只会给 OpenAI-compatible 的 `search` 和 provider 侧 `fetch` 设置 `stream=true`。它是中转长请求兼容开关，不改变 URL 描述和来源排序行为。
 - 旧的 `SMART_SEARCH_API_URL`、`SMART_SEARCH_API_KEY`、`SMART_SEARCH_API_MODE`、`SMART_SEARCH_MODEL` 不再是受支持配置项。请显式使用 `OPENAI_COMPATIBLE_*`。
-- 默认网页发现走 Tavily / Firecrawl 的中英双语路径。`zhipu-search` 仅保留为 deprecated 手动兼容命令，不参与普通 `search` 或 `research` 路由。
-- `zhipu-search` 对应的是智谱 Web Search API，不是 Chat Completions `tools=[web_search]`，不是 Search Agent，也不是 MCP Server。
+- 默认网页发现走 Tavily / Firecrawl 的中英双语路径（`search` / `research`）。
 - Jina Reader 不是通用搜索 provider。只有配置 `JINA_API_KEY` 后才计入 `standard`；`JINA_RESPOND_WITH=readerlm-v2` 也必须配置 `JINA_API_KEY`。
-- `ZHIPU_SEARCH_ENGINE` 默认是 `search_std`。官方值包括 `search_std`、`search_pro`、`search_pro_sogou`、`search_pro_quark`；`config set` 仍允许自定义值，方便官方以后新增服务。
-- `TAVILY_API_URL` 只影响 Tavily，不会代理智谱。Tavily Hikari / 号池用 `https://<host>/api/tavily`；setup 会把根域名或 `/mcp` 输入规范化成这个 REST base。
+- `TAVILY_API_URL` 只影响 Tavily。Tavily Hikari / 号池用 `https://<host>/api/tavily`；setup 会把根域名或 `/mcp` 输入规范化成这个 REST base。
 - `FIRECRAWL_API_URL` 默认是 `https://api.firecrawl.dev/v2`。
 
 非交互配置示例：
@@ -246,7 +243,6 @@ smart-search setup --non-interactive `
   --firecrawl-key "your-firecrawl-key"
 ```
 
-仅在显式需要 legacy 智谱兼容时，`smart-search setup --non-interactive --zhipu-key "your-zhipu-key" --zhipu-api-url "https://open.bigmodel.cn/api" --zhipu-search-engine "search_pro_sogou"` 仍会保存这条 deprecated 手动路径。
 
 默认最低配置是 `SMART_SEARCH_MINIMUM_PROFILE=standard`，至少需要：
 
@@ -280,9 +276,6 @@ smart-search setup --non-interactive `
 | `SMART_SEARCH_MAIN_SEARCH_ROUTE` | 主搜索路由 CSV（`xai-responses,openai-compatible` 的有序子集）；单项关闭跨路由兜底；缺省按默认链顺序 |
 | `EXA_API_KEY` | Exa key |
 | `CONTEXT7_API_KEY` | Context7 key |
-| `ZHIPU_API_KEY` | 智谱 Web Search key |
-| `ZHIPU_API_URL` | 智谱 API 地址，默认 `https://open.bigmodel.cn/api` |
-| `ZHIPU_SEARCH_ENGINE` | 智谱搜索服务，例如 `search_pro_sogou` |
 | `JINA_API_KEY` | Jina Reader key；满足 standard 必须配置 |
 | `JINA_READER_API_URL` | Jina Reader endpoint，默认 `https://r.jina.ai` |
 | `JINA_RESPOND_WITH` | Jina Reader 响应模式，例如 `readerlm-v2`；需要 `JINA_API_KEY` |
@@ -310,7 +303,6 @@ smart-search setup --non-interactive `
 | `map` | `m` | 读取站点结构 |
 | `exa-search` | `exa`、`x` | Exa 来源发现 |
 | `exa-similar` | `xs` | 从一个 URL 找相似页面 |
-| `zhipu-search` | `z`、`zp` | **DEPRECATED** — 0.2.0 移除；legacy 智谱 Web Search API |
 | `context7-library` | `c7`、`ctx7` | 查 Context7 库候选 |
 | `context7-docs` | `c7d`、`c7docs`、`ctx7-docs` | 抓 Context7 文档 |
 | `doctor` | `d` | 配置和连通性检查 |
@@ -423,6 +415,24 @@ GitHub Actions 在 `ubuntu-latest` 与 `windows-latest` 上运行相同门禁（
 
 ## 最新稳定版说明
 
+### v0.2.0
+
+破坏性清理：移除智谱 Web Search 支持路径。
+
+- 移除 `zhipu-search` CLI 命令及别名 `z` / `zp`。
+- 移除 `providers/zhipu.py` 与 setup/doctor/config 中全部 `ZHIPU_*` 配置键。
+- 移除 research_discovery / routing / provider-profile 中的 zhipu 分支。
+- 文档与 skill 资产不再将智谱列为受支持提供者。
+- 旧 `config.json` 中残留的 `ZHIPU_*` 键会被忽略（不崩溃）。
+
+升级：
+
+```bash
+npm install -g @blxzer/smart-search@0.2.0
+# 或
+pip install -U smart-search
+```
+
 ### v0.1.15
 
 六阶段优化路线图稳定版 — 质量、模块化、性能、可观测性、CI，以及路线图外的 TTL 缓存与 `zhipu-search` deprecation cycle。
@@ -474,21 +484,11 @@ git push origin v0.1.15
 4. 最后安装指定版本并运行 `smart-search --version`、`smart-search doctor --format json`。
 5. Windows npm/mise 包装层额外跑中文 JSON 管道：`smart-search search "深度搜索一下最近的比特币行情" --format json | ConvertFrom-Json`。稳定版示例：`npm install -g @blxzer/smart-search@0.1.15`。
 
-## Deprecation 声明
+## 0.2.0 已移除
 
-### `zhipu-search` CLI 命令（deprecated；计划移除）
-
-`zhipu-search` 子命令（别名 `z`、`zp`）及底层 `providers/zhipu.py` 路由已 **deprecated**，不再参与默认 `search` / `research` 路由，仅保留用于显式 legacy 兼容。
-
-移除时间表：
-
-| 版本 | 动作 |
-|------|------|
-| 0.1.x（当前） | 每次 `zhipu-search` 调用向 stderr 输出 deprecation warning；`doctor` 报告 `deprecated` 状态；文档标记该命令 deprecated。不移除任何代码。 |
-| 0.2.0（下个 minor） | 移除 `zhipu-search` CLI 子命令与 `research_discovery` zhipu 分支。 |
-| 1.0.0（下个 major） | 移除 `providers/zhipu.py` 与所有 `ZHIPU_*` 配置键。 |
-
-迁移：改用 `search`（Tavily / Firecrawl 双语发现）或 `research`（完整 Deep Research）。
+- `zhipu-search`（别名 `z`、`zp`）、`providers/zhipu.py` 以及全部 `ZHIPU_*` 配置键已移除。
+- 旧 `config.json` 中残留的 `ZHIPU_*` 会被忽略，不会导致启动崩溃。
+- 迁移：改用 `search`（Tavily / Firecrawl 双语发现）或 `research`。
 
 ## Community
 

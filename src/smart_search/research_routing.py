@@ -35,8 +35,6 @@ def _provider_configured(provider: str) -> bool:
         return bool(config.context7_api_key)
     if provider == "exa":
         return bool(config.exa_api_key)
-    if provider == "zhipu":
-        return bool(config.zhipu_api_key)
     if provider == "tavily":
         return bool(config.tavily_api_key)
     if provider == "jina":

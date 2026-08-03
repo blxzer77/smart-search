@@ -43,8 +43,6 @@ async def run_web_search_fallback(
         configured.append("tavily")
     if config.firecrawl_api_key:
         configured.append("firecrawl")
-    if provider_filter is not None and "zhipu" in provider_filter and config.zhipu_api_key:
-        configured.append("zhipu")
     if provider_filter is not None:
         configured = [p for p in configured if p in provider_filter]
     if fallback == "off":
@@ -53,32 +51,7 @@ async def run_web_search_fallback(
     for provider in configured:
         start = time.time()
         try:
-            if provider == "zhipu":
-                data = await _service().zhipu_search(query, count=count)
-                if data.get("ok"):
-                    sources = _service()._normalize_source_results(data.get("results"), "zhipu")
-                    if sources:
-                        attempts.append(
-                            _service()._attempt("web_search", provider, "ok", start, result_count=len(sources))
-                        )
-                        return sources, attempts
-                status = (
-                    "error"
-                    if data.get("error_type")
-                    in {"rate_limited", "auth_error", "timeout", "network_error", "runtime_error"}
-                    else "empty"
-                )
-                attempts.append(
-                    _service()._attempt(
-                        "web_search",
-                        provider,
-                        status,
-                        start,
-                        error_type=data.get("error_type", ""),
-                        error=data.get("error", ""),
-                    )
-                )
-            elif provider == "tavily":
+            if provider == "tavily":
                 results = await _service().call_tavily_search(query, count)
                 sources = _service()._normalize_source_results(results, "tavily")
                 if sources:

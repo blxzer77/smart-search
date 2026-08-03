@@ -279,7 +279,7 @@ def build_deep_research_plan(query: str, budget: str = "standard", evidence_dir:
                 _deep_subquestion(
                     sub_id,
                     f"{question} 的最新或中文/国内来源如何交叉验证？",
-                    "Current or China-scoped prompts use bilingual search instead of Zhipu reinforcement.",
+                    "Current or China-scoped prompts use bilingual search for locale-sensitive evidence.",
                     ["current_or_locale_source_discovery"],
                 )
             )
