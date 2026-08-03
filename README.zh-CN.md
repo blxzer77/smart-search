@@ -267,7 +267,7 @@ smart-search setup --non-interactive `
 | --- | --- |
 | `XAI_API_URL` | xAI Responses API base URL，默认 `https://api.x.ai/v1` |
 | `XAI_API_KEY` | xAI key；配置即启用 xai-responses 主搜索路由 |
-| `XAI_MODEL` | xAI 模型名，默认 `grok-4-fast` |
+| `XAI_MODEL` | xAI 模型名，默认 `grok-4.5` |
 | `XAI_TOOLS` | xAI server-side 工具，默认 `web_search,x_search` |
 | `OPENAI_COMPATIBLE_API_URL` | OpenAI-compatible `/v1` base URL |
 | `OPENAI_COMPATIBLE_API_KEY` | OpenAI-compatible key |

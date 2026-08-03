@@ -150,7 +150,7 @@ def test_setup_non_interactive_saves_xai_values(monkeypatch, capsys):
         "--xai-api-key",
         "xai-test-secret",
         "--xai-model",
-        "grok-4-fast",
+        "grok-4.5",
         "--xai-tools",
         "web_search,x_search",
         "--main-search-route",
@@ -161,7 +161,7 @@ def test_setup_non_interactive_saves_xai_values(monkeypatch, capsys):
     assert code == cli.EXIT_OK
     assert saved["XAI_API_URL"] == "https://api.x.ai/v1"
     assert saved["XAI_API_KEY"] == "xai-test-secret"
-    assert saved["XAI_MODEL"] == "grok-4-fast"
+    assert saved["XAI_MODEL"] == "grok-4.5"
     assert saved["XAI_TOOLS"] == "web_search,x_search"
     assert saved["SMART_SEARCH_MAIN_SEARCH_ROUTE"] == "xai-responses,openai-compatible"
     assert "xai-test-secret" not in out

@@ -1230,7 +1230,7 @@ def _prompt_main_search(values: dict[str, str], current: dict[str, str], lang: s
         )
         values["XAI_MODEL"] = _prompt_value(
             "XAI_MODEL",
-            _t(lang, "xAI 模型（默认 grok-4-fast）", "xAI model (default grok-4-fast)"),
+            _t(lang, "xAI 模型（默认 grok-4.5）", "xAI model (default grok-4.5)"),
             current.get("XAI_MODEL", ""),
             optional=True,
             lang=lang,
