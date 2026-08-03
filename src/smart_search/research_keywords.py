@@ -11,7 +11,8 @@ MINIMUM_PROFILE_ERROR = (
 OPENAI_COMPATIBLE_DIAGNOSE_COMMAND = "smart-search diagnose openai-compatible --format markdown"
 XAI_DIAGNOSE_COMMAND = "smart-search diagnose xai --format markdown"
 
-DOCS_INTENT_ASCII_KEYWORDS = {
+# Strong cues alone can mark docs/API intent (precision-first).
+DOCS_INTENT_ASCII_STRONG = {
     "api",
     "sdk",
     "library",
@@ -29,6 +30,10 @@ DOCS_INTENT_ASCII_KEYWORDS = {
     "changelog",
     "release notes",
     "migration",
+    "syntax",
+}
+# Weak product/language tokens need a strong secondary cue (or allowlist pair).
+DOCS_INTENT_ASCII_WEAK = {
     "react",
     "next.js",
     "vue",
@@ -36,7 +41,9 @@ DOCS_INTENT_ASCII_KEYWORDS = {
     "prisma",
     "langchain",
     "openai",
+    "fastapi",
 }
+DOCS_INTENT_ASCII_KEYWORDS = DOCS_INTENT_ASCII_STRONG | DOCS_INTENT_ASCII_WEAK
 RESEARCH_PROVIDER_MENTION_KEYWORDS = {
     "tavily",
     "exa",
@@ -59,18 +66,25 @@ RESEARCH_BROAD_TOPIC_KEYWORDS = {
     "comparison",
     "benchmark",
     "landscape",
+    "vs",
+    "versus",
+    "better",
+    "rag",
+    "对比",
+    "架构",
+    "取舍",
+    "选型",
+    "哪个好",
+    "更好",
     "2024",
     "2025",
     "2026",
 }
-DOCS_INTENT_TEXT_KEYWORDS = {
+DOCS_INTENT_TEXT_STRONG = {
     "接口",
     "文档",
-    "库",
     "框架",
     "函数",
-    "参数",
-    "配置",
     "教程",
     "指南",
     "示例",
@@ -80,6 +94,17 @@ DOCS_INTENT_TEXT_KEYWORDS = {
     "变更日志",
     "版本说明",
 }
+DOCS_INTENT_TEXT_WEAK = {
+    "库",
+    "参数",
+    "配置",
+}
+DOCS_INTENT_TEXT_KEYWORDS = DOCS_INTENT_TEXT_STRONG | DOCS_INTENT_TEXT_WEAK
+# Terse but legitimate docs questions: weak token + any of these companions.
+DOCS_INTENT_TERSE_PAIRS: tuple[tuple[str, frozenset[str]], ...] = (
+    ("python", frozenset({"syntax", "comprehension", "typing", "asyncio", "decorator", "generator"})),
+    ("react", frozenset({"hook", "hooks", "jsx", "component", "useeffect", "usestate"})),
+)
 DOCS_INTENT_KEYWORDS = DOCS_INTENT_ASCII_KEYWORDS | DOCS_INTENT_TEXT_KEYWORDS
 ZH_CURRENT_KEYWORDS = {
     "今天",
@@ -181,7 +206,7 @@ DEEP_EXA_DISCOVERY_KEYWORDS = {
     "standard",
     "standards",
 }
-RESEARCH_ROUTE_POLICY_VERSION = "research-router-v3-gap-tightening"
+RESEARCH_ROUTE_POLICY_VERSION = "research-router-v3-intent-p0"
 RESEARCH_JS_HEAVY_KEYWORDS = {
     "js-heavy",
     "javascript",

@@ -139,7 +139,15 @@ def build_deep_research_plan(query: str, budget: str = "standard", evidence_dir:
     if known_url:
         locale_domain_scope = "known_domains"
     claim_risk = "high" if recency_requirement in {"recent", "current"} or _contains_any(question, {"核验", "验证", "真假", "价格", "行情", "财经", "医疗", "政策", "监管", "risk"}) else "medium"
-    cross_validation_need = "high" if claim_risk == "high" or _contains_any(question, {"对比", "选型", "核验", "验证", "compare", "versus"}) else "normal"
+    cross_validation_need = (
+        "high"
+        if claim_risk == "high"
+        or _contains_any(
+            question,
+            {"对比", "选型", "核验", "验证", "compare", "versus", "vs", "更好", "哪个好"},
+        )
+        else "normal"
+    )
     authority_need = "high" if docs_intent or claim_risk == "high" or _contains_any(question, {"官方", "文档", "论文", "标准", "政策", "监管", "official"}) else "normal"
     complex_query = _is_deep_complex(question, budget)
     difficulty = "high" if complex_query else "standard"

@@ -326,17 +326,36 @@ async def research(
                         break
                 provider_attempts.append(_attempt("docs_search", "exa", "error" if data.get("error_type") else "empty", step_start, error_type=data.get("error_type", ""), error=data.get("error", ""), cache_hit=cache_hit))
 
+    fail_open_web_after_docs = False
+    if signals["docs_api_intent"]:
+        has_http_evidence = any(str(item.get("url") or "").startswith("http") for item in evidence_items)
+        has_http_discovery = any(str(source.get("url") or "").startswith("http") for source in discovery_sources)
+        if not has_http_evidence and not has_http_discovery:
+            fail_open_web_after_docs = True
+
     should_run_web_discovery = (
         signals["current_or_locale_intent"]
         or signals["cross_validation_need"] == "high"
         or signals.get("broad_research_intent")
+        or fail_open_web_after_docs
         or (not evidence_items and not discovery_sources)
     ) and not (urls and fallback_mode == "off")
     if should_run_web_discovery:
         web_provider_order = routes["capabilities"]["web_search"]["providers"]
         if web_provider_order:
             if report:
-                report(f"web_discovery: locale_scope={locale_scope_mode}")
+                reason = f"web_discovery: locale_scope={locale_scope_mode}"
+                if fail_open_web_after_docs:
+                    reason += " (fail_open_web_after_docs)"
+                report(reason)
+            if fail_open_web_after_docs:
+                stage_results.append(
+                    {
+                        "stage": "fail_open_web_after_docs",
+                        "ok": True,
+                        "reason": "docs stage produced no HTTP evidence or discovery",
+                    }
+                )
             web_ttl = None if is_time_sensitive(question) else CACHE_TTL_BY_CAPABILITY["web_search"]
             web_result, web_cache_hit = await cached_call(
                 "web_search",
