@@ -305,7 +305,7 @@ smart-search config set OPENAI_COMPATIBLE_API_KEY "key" --format json
 smart-search config set OPENAI_COMPATIBLE_MODEL "model-id" --format json
 smart-search config set OPENAI_COMPATIBLE_STREAM "true" --format json
 smart-search config set XAI_API_KEY "key" --format json
-smart-search config set XAI_MODEL "grok-4-fast" --format json
+smart-search config set XAI_MODEL "grok-4.5" --format json
 smart-search config set SMART_SEARCH_MAIN_SEARCH_ROUTE "xai-responses,openai-compatible" --format json
 smart-search config set EXA_API_KEY "key" --format json
 smart-search config set CONTEXT7_API_KEY "key" --format json

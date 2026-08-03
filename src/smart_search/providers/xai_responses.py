@@ -16,7 +16,7 @@ _ssl_warning_emitted = False
 
 
 class XAIResponsesSearchProvider(BaseSearchProvider):
-    def __init__(self, api_url: str, api_key: str, model: str = "grok-4-fast", tools: list[str] | None = None):
+    def __init__(self, api_url: str, api_key: str, model: str = "grok-4.5", tools: list[str] | None = None):
         super().__init__(api_url.rstrip("/"), api_key)
         self.model = model
         self.tools = tools or []

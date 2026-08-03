@@ -11,7 +11,7 @@ class Config:
         "`smart-search doctor --format json`."
     )
     _DEFAULT_MODEL = "grok-4.20-multi-agent-xhigh"
-    _DEFAULT_XAI_MODEL = "grok-4-fast"
+    _DEFAULT_XAI_MODEL = "grok-4.5"
     _DEFAULT_XAI_TOOLS = "web_search,x_search"
     _DEFAULT_VALIDATION_LEVEL = "balanced"
     _DEFAULT_FALLBACK_MODE = "auto"
