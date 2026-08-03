@@ -3,7 +3,10 @@ import time
 from typing import Any
 
 import httpx
+from tenacity import AsyncRetrying, retry_if_exception, stop_after_attempt
 
+from ..config import config
+from .openai_compatible import _WaitWithRetryAfter, _is_retryable_exception
 
 CHALLENGE_MARKERS = (
     "title: just a moment",
@@ -90,8 +93,15 @@ class JinaReaderProvider:
         try:
             timeout = httpx.Timeout(connect=6.0, read=self.timeout, write=10.0, pool=None)
             async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
-                response = await client.get(endpoint, headers=headers)
-                response.raise_for_status()
+                async for attempt in AsyncRetrying(
+                    stop=stop_after_attempt(config.retry_max_attempts + 1),
+                    wait=_WaitWithRetryAfter(config.retry_multiplier, config.retry_max_wait),
+                    retry=retry_if_exception(_is_retryable_exception),
+                    reraise=True,
+                ):
+                    with attempt:
+                        response = await client.get(endpoint, headers=headers)
+                        response.raise_for_status()
             content = response.text.strip()
             quality_error = _quality_error(content)
             if quality_error:

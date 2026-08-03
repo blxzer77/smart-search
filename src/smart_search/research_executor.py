@@ -1,109 +1,37 @@
 import time
 from typing import Any
 
-from . import service as _service
-from .research_cache import CACHE_TTL_BY_CAPABILITY, cached_call, is_time_sensitive, make_key
+from .research_cache import CACHE_TTL_BY_CAPABILITY, cached_call, is_time_sensitive, make_keyed
 from .research_fetch_batch import fetch_research_candidates_concurrent
 from .research_keywords import MINIMUM_PROFILE_ERROR, RESEARCH_ROUTE_POLICY_VERSION
 from .research_progress import ProgressReporter, make_progress_reporter
+from .research_runtime import (
+    _attempt,
+    _citation_items,
+    _deep_budget,
+    _default_evidence_dir,
+    _elapsed_ms,
+    _evidence_only_synthesis,
+    _extract_urls,
+    _fallback_used,
+    _normalize_source_results,
+    _provider_names_from_attempts,
+    _research_capability_routes,
+    _research_evidence_item,
+    _research_fetch_order,
+    _research_gap_status,
+    _run_bilingual_web_search,
+    _run_web_fetch_fallback,
+    _select_candidate_urls,
+    _write_research_artifact,
+    build_deep_research_plan,
+    context7_docs,
+    context7_library,
+    exa_search,
+    validate_minimum_profile,
+)
 
 RESEARCH_OUTPUT_SCHEMA_VERSION = 1
-
-
-def _elapsed_ms(*args, **kwargs):
-    return _service._elapsed_ms(*args, **kwargs)
-
-
-def validate_minimum_profile(*args, **kwargs):
-    return _service.validate_minimum_profile(*args, **kwargs)
-
-
-def build_deep_research_plan(*args, **kwargs):
-    return _service.build_deep_research_plan(*args, **kwargs)
-
-
-def _deep_budget(*args, **kwargs):
-    return _service._deep_budget(*args, **kwargs)
-
-
-def _default_evidence_dir(*args, **kwargs):
-    return _service._default_evidence_dir(*args, **kwargs)
-
-
-def _research_capability_routes(*args, **kwargs):
-    return _service._research_capability_routes(*args, **kwargs)
-
-
-def _write_research_artifact(*args, **kwargs):
-    return _service._write_research_artifact(*args, **kwargs)
-
-
-def _extract_urls(*args, **kwargs):
-    return _service._extract_urls(*args, **kwargs)
-
-
-def _research_evidence_item(*args, **kwargs):
-    return _service._research_evidence_item(*args, **kwargs)
-
-
-def _select_candidate_urls(*args, **kwargs):
-    return _service._select_candidate_urls(*args, **kwargs)
-
-
-def _research_gap_status(*args, **kwargs):
-    return _service._research_gap_status(*args, **kwargs)
-
-
-def _evidence_only_synthesis(*args, **kwargs):
-    return _service._evidence_only_synthesis(*args, **kwargs)
-
-
-def _citation_items(*args, **kwargs):
-    return _service._citation_items(*args, **kwargs)
-
-
-def _provider_names_from_attempts(*args, **kwargs):
-    return _service._provider_names_from_attempts(*args, **kwargs)
-
-
-def _fallback_used(*args, **kwargs):
-    return _service._fallback_used(*args, **kwargs)
-
-
-def _attempt(*args, **kwargs):
-    return _service._attempt(*args, **kwargs)
-
-
-def _normalize_source_results(*args, **kwargs):
-    return _service._normalize_source_results(*args, **kwargs)
-
-
-def _research_fetch_order(*args, **kwargs):
-    return _service._research_fetch_order(*args, **kwargs)
-
-
-async def _run_web_fetch_fallback(*args, **kwargs):
-    return await _service._run_web_fetch_fallback(*args, **kwargs)
-
-
-async def _run_bilingual_web_search(*args, **kwargs):
-    return await _service._run_bilingual_web_search(*args, **kwargs)
-
-
-async def _run_docs_search_fallback(*args, **kwargs):
-    return await _service._run_docs_search_fallback(*args, **kwargs)
-
-
-async def context7_library(*args, **kwargs):
-    return await _service.context7_library(*args, **kwargs)
-
-
-async def context7_docs(*args, **kwargs):
-    return await _service.context7_docs(*args, **kwargs)
-
-
-async def exa_search(*args, **kwargs):
-    return await _service.exa_search(*args, **kwargs)
 
 
 async def research(
@@ -222,7 +150,7 @@ async def research(
         if report:
             report(f"known_url_fetch: {len(urls)} url(s)")
         for index, url in enumerate(urls, 1):
-            fetch_key = make_key("web_fetch", url, fallback_mode, "|".join(fetch_order))
+            fetch_key = make_keyed("web_fetch", url, fallback_mode, "|".join(fetch_order))
             cached_result, cache_hit = await cached_call(
                 "web_fetch",
                 fetch_key,
@@ -266,7 +194,7 @@ async def research(
                 docs_ttl = None if is_time_sensitive(question) else CACHE_TTL_BY_CAPABILITY["docs_search"]
                 data, cache_hit = await cached_call(
                     "docs_search",
-                    make_key("context7_library", question),
+                    make_keyed("context7_library", question),
                     docs_ttl,
                     context7_library,
                     question,
@@ -280,7 +208,7 @@ async def research(
                         docs_start = time.time()
                         docs_data, docs_cache_hit = await cached_call(
                             "docs_search",
-                            make_key("context7_docs", library_id, question),
+                            make_keyed("context7_docs", library_id, question),
                             docs_ttl,
                             context7_docs,
                             library_id,
@@ -310,7 +238,7 @@ async def research(
                 docs_ttl = None if is_time_sensitive(question) else CACHE_TTL_BY_CAPABILITY["docs_search"]
                 data, cache_hit = await cached_call(
                     "docs_search",
-                    make_key("exa_search", question, 5, True),
+                    make_keyed("exa_search", question, 5, True),
                     docs_ttl,
                     exa_search,
                     question,
@@ -359,7 +287,7 @@ async def research(
             web_ttl = None if is_time_sensitive(question) else CACHE_TTL_BY_CAPABILITY["web_search"]
             web_result, web_cache_hit = await cached_call(
                 "web_search",
-                make_key("bilingual", question, 5, ",".join(web_provider_order), fallback_mode, locale_scope_mode),
+                make_keyed("bilingual", question, 5, ",".join(web_provider_order), fallback_mode, locale_scope_mode),
                 web_ttl,
                 _run_bilingual_web_search,
                 question,
@@ -391,7 +319,7 @@ async def research(
         exa_ttl = None if is_time_sensitive(question) else CACHE_TTL_BY_CAPABILITY["docs_search"]
         data, exa_cache_hit = await cached_call(
             "docs_search",
-            make_key("exa_supplemental", question, 5, True),
+            make_keyed("exa_supplemental", question, 5, True),
             exa_ttl,
             exa_search,
             question,

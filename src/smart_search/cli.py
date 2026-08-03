@@ -147,6 +147,27 @@ def _search_timeout_result(query: str, timeout: float, search_kwargs: dict[str, 
     }
 
 
+def _research_timeout_result(query: str, timeout: float) -> dict[str, Any]:
+    seconds = _format_seconds(timeout)
+    return {
+        "ok": False,
+        "error_type": "network_error",
+        "error": f"Research timed out after {seconds} seconds",
+        "question": query,
+        "query": query,
+        "final_answer": "",
+        "content": "",
+        "citations": [],
+        "evidence_items": [],
+        "gap_check": {"status": "failed", "gaps": [{"reason": "cli research timeout"}], "stop_reason": "timeout"},
+        "provider_attempts": [],
+        "fallback_used": False,
+        "degraded": True,
+        "timeout_seconds": timeout,
+        "mode": "deep_research_execution",
+    }
+
+
 def _one_line(value: Any, limit: int = 160) -> str:
     text = "" if value is None else str(value)
     text = " ".join(text.replace("\r", " ").replace("\n", " ").split())
@@ -1644,15 +1665,22 @@ async def _run_async(args: argparse.Namespace) -> int:
         data = await service.context7_docs(args.library_id, args.query)
         return _print_result("context7-docs", data, args.format, args.output)
     if args.command == "research":
-        data = await service.research(
-            args.query,
-            budget=args.budget,
-            evidence_dir=args.evidence_dir,
-            fallback=args.fallback,
-            locale_scope=args.locale_scope,
-            dry_run=args.dry_run,
-            progress=args.progress,
-        )
+        try:
+            data = await asyncio.wait_for(
+                service.research(
+                    args.query,
+                    budget=args.budget,
+                    evidence_dir=args.evidence_dir,
+                    fallback=args.fallback,
+                    locale_scope=args.locale_scope,
+                    dry_run=args.dry_run,
+                    progress=args.progress,
+                ),
+                timeout=args.timeout,
+            )
+        except asyncio.TimeoutError:
+            data = _research_timeout_result(args.query, args.timeout)
+            return _print_result("research", data, args.format, args.output)
         return _print_result("research", data, args.format, args.output)
     if args.command == "doctor":
         data = await service.doctor()
@@ -1868,6 +1896,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--progress",
         action="store_true",
         help="Write staged execution progress lines to stderr.",
+    )
+    research_parser.add_argument(
+        "--timeout",
+        type=float,
+        default=600,
+        metavar="SECONDS",
+        help="Hard timeout in seconds for the full research run (default: 600).",
     )
     _add_format_args(research_parser)
 

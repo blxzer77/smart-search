@@ -100,7 +100,7 @@ async def call_tavily_extract(url: str) -> str | None:
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     body = {"urls": [url], "format": "markdown"}
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=config.tavily_timeout) as client:
             response = await client.post(endpoint, headers=headers, json=body)
             response.raise_for_status()
             data = response.json()

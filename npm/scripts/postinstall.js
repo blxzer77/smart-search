@@ -57,7 +57,7 @@ function venvPython() {
 const python = findPython();
 if (!python) {
   console.error("smart-search requires Python 3.10 or newer.");
-  console.error("Install Python, then run: npm install -g @konbakuyomu/smart-search@latest");
+  console.error("Install Python, then run: npm install -g @blxzer/smart-search@latest");
   process.exit(1);
 }
 
