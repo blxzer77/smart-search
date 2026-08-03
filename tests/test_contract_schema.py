@@ -22,6 +22,7 @@ def test_search_result_contract_keys():
         [
             "ok",
             "error_type",
+            "error_code",
             "error",
             "query",
             "routing_decision",

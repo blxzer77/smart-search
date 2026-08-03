@@ -136,6 +136,8 @@ def test_search_timeout_retry_policy_is_distributable():
 
     skill_markers = [
         "Timeout Retry Policy",
+        "Error contract (U1/U2)",
+        "error_code",
         "error_type: \"network_error\"",
         "Retry up to 3 total attempts with `--timeout 180`",
         "`--extra-sources 1` during retry attempts",

@@ -6,7 +6,8 @@ SOURCE_PROVENANCE_WARNING = (
     "use fetch on key URLs for claim-level evidence."
 )
 MINIMUM_PROFILE_ERROR = (
-    "最低配置不满足：必须至少配置 main_search、docs_search、web_fetch 三类能力各一个 provider。"
+    "Minimum profile not satisfied: configure at least one provider each for "
+    "main_search, docs_search, and web_fetch."
 )
 OPENAI_COMPATIBLE_DIAGNOSE_COMMAND = "smart-search diagnose openai-compatible --format markdown"
 XAI_DIAGNOSE_COMMAND = "smart-search diagnose xai --format markdown"

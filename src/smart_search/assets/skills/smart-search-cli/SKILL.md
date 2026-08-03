@@ -338,6 +338,18 @@ smart-search d --format markdown
 
 When `smart-search search` returns `ok: false` with `error_type: "network_error"` and an error message containing `timed out`, treat it as a retryable CLI-level timeout, not as a terminal research failure.
 
+### Error contract (U1/U2)
+
+Failed JSON payloads expose a stable triple for Agent/JSON consumers:
+
+| Field | Meaning |
+| --- | --- |
+| `error_type` | Category enum string: `config_error`, `parameter_error`, `network_error`, `evidence_error`, `auth_error`, `rate_limited`, `timeout`, `parse_error`, `quality_error`, `runtime_error` |
+| `error_code` | Stable `SCREAMING_SNAKE` code (defaults from `error_type`, e.g. `CONFIG_ERROR`; specific codes such as `MISSING_API_KEY`, `SEARCH_TIMEOUT` when applicable) |
+| `error` | Default **English** human message (no locale framework; Chinese remains only in interactive setup prompts via existing `_t`) |
+
+CLI exit codes stay mapped from `error_type` only: `parameter_error→2`, `config_error→3`, `network_error`/`evidence_error→4`, other→`5`.
+
 1. Retry up to 3 total attempts with `--timeout 180`, waiting about 5 seconds between attempts.
 2. Use `--format json` and `--output PATH` for each attempt; after each attempt, inspect the saved JSON and stop on the first `"ok": true`.
 3. Use `--extra-sources 1` during retry attempts to keep Tavily/Firecrawl overhead small.
