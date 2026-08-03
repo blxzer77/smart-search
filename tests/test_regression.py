@@ -436,8 +436,6 @@ def test_deleted_features_absent_from_shipped_assets():
     corpus = "\n".join([public_text, packaged_text, readme, readme_zh])
 
     forbidden = [
-        "xai-responses",
-        "XAI_",
         "anysearch",
         "ANYSEARCH",
         "zhipu-mcp",

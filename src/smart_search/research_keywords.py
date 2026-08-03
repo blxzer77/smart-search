@@ -9,6 +9,7 @@ MINIMUM_PROFILE_ERROR = (
     "最低配置不满足：必须至少配置 main_search、docs_search、web_fetch 三类能力各一个 provider。"
 )
 OPENAI_COMPATIBLE_DIAGNOSE_COMMAND = "smart-search diagnose openai-compatible --format markdown"
+XAI_DIAGNOSE_COMMAND = "smart-search diagnose xai --format markdown"
 
 DOCS_INTENT_ASCII_KEYWORDS = {
     "api",
@@ -196,7 +197,7 @@ RESEARCH_JS_HEAVY_KEYWORDS = {
 }
 RESEARCH_PDF_KEYWORDS = {"pdf", "arxiv", "论文", "paper", ".pdf"}
 RESEARCH_PROFILE_ORDER = {
-    "main_search": ["openai-compatible"],
+    "main_search": ["xai-responses", "openai-compatible"],
     "web_search": ["tavily", "firecrawl"],
     "docs_search": ["context7", "exa"],
     "web_fetch": ["tavily", "jina", "firecrawl"],
@@ -204,6 +205,15 @@ RESEARCH_PROFILE_ORDER = {
     "synthesis": ["main-search"],
 }
 PROVIDER_PROFILES: dict[str, dict[str, Any]] = {
+    "xai-responses": {
+        "capability": "main_search",
+        "strengths": ["broad synthesis", "web_search", "x_search"],
+        "exclusions": ["evidence proof without fetch"],
+        "fallback_group": "main_search",
+        "minimum_profile_role": "main_search",
+        "quality_filters": ["source extraction required for high-risk claims"],
+        "route_reasons": ["primary synthesis with xAI server-side web/x search"],
+    },
     "openai-compatible": {
         "capability": "main_search",
         "strengths": ["broad synthesis", "relay compatibility"],
@@ -280,7 +290,8 @@ PROVIDER_PROFILES: dict[str, dict[str, Any]] = {
         "route_reasons": ["evidence-only synthesis"],
     },
 }
-MAIN_SEARCH_FALLBACK_CHAIN = ["openai-compatible"]
+MAIN_SEARCH_FALLBACK_CHAIN = ["xai-responses", "openai-compatible"]
 MAIN_SEARCH_PROVIDER_ALIASES = {
+    "xai-responses": {"xai-responses", "xai", "grok", "grok-web-tools"},
     "openai-compatible": {"openai-compatible", "openai", "chat-completions", "primary"},
 }

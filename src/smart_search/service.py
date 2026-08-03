@@ -15,6 +15,7 @@ from .providers.context7 import Context7Provider
 from .providers.exa import ExaSearchProvider
 from .providers.jina import JinaReaderProvider
 from .providers.openai_compatible import OpenAICompatibleSearchProvider, get_local_time_info
+from .providers.xai_responses import XAIResponsesSearchProvider
 from .providers.zhipu import ZhipuWebSearchProvider
 from .research_keywords import (
     DEEP_ALLOWED_TOOLS,
@@ -33,6 +34,7 @@ from .research_keywords import (
     MINIMUM_PROFILE_ERROR,
     OPENAI_COMPATIBLE_DIAGNOSE_COMMAND,
     PROVIDER_PROFILES,
+    XAI_DIAGNOSE_COMMAND,
     RESEARCH_BROAD_TOPIC_KEYWORDS,
     RESEARCH_JS_HEAVY_KEYWORDS,
     RESEARCH_PDF_KEYWORDS,
@@ -431,10 +433,14 @@ async def research(
 
 def get_capability_status() -> dict[str, Any]:
     main_configured = _configured_main_search_provider_ids()
+    try:
+        main_chain = _effective_main_search_chain()
+    except ValueError:
+        main_chain = list(MAIN_SEARCH_FALLBACK_CHAIN)
     status = {
         "main_search": {
             "configured": main_configured,
-            "fallback_chain": MAIN_SEARCH_FALLBACK_CHAIN,
+            "fallback_chain": main_chain,
             "ok": bool(main_configured),
         },
         "web_search": {
@@ -513,18 +519,64 @@ def _provider_allowed(provider_id: str, provider_filter: set[str] | None) -> boo
     return bool(provider_filter.intersection(aliases))
 
 
+def _effective_main_search_chain() -> list[str]:
+    raw = config.main_search_route_raw
+    if not raw.strip():
+        return list(MAIN_SEARCH_FALLBACK_CHAIN)
+    resolved: list[str] = []
+    invalid: list[str] = []
+    for item in raw.split(","):
+        token = item.strip().lower()
+        if not token:
+            continue
+        match = next(
+            (
+                provider
+                for provider in MAIN_SEARCH_FALLBACK_CHAIN
+                if token == provider or token in MAIN_SEARCH_PROVIDER_ALIASES.get(provider, set())
+            ),
+            None,
+        )
+        if match is None:
+            invalid.append(token)
+        elif match not in resolved:
+            resolved.append(match)
+    if invalid:
+        allowed = ", ".join(MAIN_SEARCH_FALLBACK_CHAIN)
+        invalid_text = ", ".join(invalid)
+        raise ValueError(f"Invalid SMART_SEARCH_MAIN_SEARCH_ROUTE: {invalid_text}. Supported values: {allowed}")
+    return resolved or list(MAIN_SEARCH_FALLBACK_CHAIN)
+
+
 def _configured_main_search_provider_ids() -> list[str]:
     configured: set[str] = set()
 
+    if config.xai_api_key:
+        configured.add("xai-responses")
     if config.openai_compatible_api_url and config.openai_compatible_api_key:
         configured.add("openai-compatible")
 
-    return [provider for provider in MAIN_SEARCH_FALLBACK_CHAIN if provider in configured]
+    try:
+        chain = _effective_main_search_chain()
+    except ValueError:
+        chain = list(MAIN_SEARCH_FALLBACK_CHAIN)
+    return [provider for provider in chain if provider in configured]
 
 
 def _main_search_provider_configs(model_override: str = "", providers: str = "auto") -> list[dict[str, Any]]:
     provider_filter = _parse_provider_filter(providers)
     by_provider: dict[str, dict[str, Any]] = {}
+
+    if config.xai_api_key:
+        by_provider["xai-responses"] = {
+            "provider": "xai-responses",
+            "mode": "xai-responses",
+            "api_url": config.xai_api_url,
+            "api_key": config.xai_api_key,
+            "model": model_override or config.xai_model,
+            "tools": config.parse_xai_tools(),
+            "source": "XAI_*",
+        }
 
     if config.openai_compatible_api_url and config.openai_compatible_api_key:
         by_provider["openai-compatible"] = {
@@ -540,7 +592,7 @@ def _main_search_provider_configs(model_override: str = "", providers: str = "au
 
     return [
         by_provider[provider]
-        for provider in MAIN_SEARCH_FALLBACK_CHAIN
+        for provider in _effective_main_search_chain()
         if provider in by_provider and _provider_allowed(provider, provider_filter)
     ]
 
@@ -549,14 +601,24 @@ def _main_search_providers(provider_configs: list[dict[str, Any]], fallback: str
     selected = provider_configs if fallback != "off" else provider_configs[:1]
     providers: list[Any] = []
     for provider_config in selected:
-        providers.append(
-            OpenAICompatibleSearchProvider(
-                provider_config["api_url"],
-                provider_config["api_key"],
-                provider_config["model"],
-                provider_config.get("stream", False),
+        if provider_config["provider"] == "xai-responses":
+            providers.append(
+                XAIResponsesSearchProvider(
+                    provider_config["api_url"],
+                    provider_config["api_key"],
+                    provider_config["model"],
+                    provider_config.get("tools", []),
+                )
             )
-        )
+        else:
+            providers.append(
+                OpenAICompatibleSearchProvider(
+                    provider_config["api_url"],
+                    provider_config["api_key"],
+                    provider_config["model"],
+                    provider_config.get("stream", False),
+                )
+            )
     return providers
 
 
@@ -1584,6 +1646,146 @@ async def diagnose_openai_compatible(timeout_seconds: float = 30.0) -> dict[str,
     return result
 
 
+async def _probe_xai_search_shape(api_url: str, api_key: str, model: str, tools: list[str], timeout_seconds: float) -> dict[str, Any]:
+    start = time.time()
+    payload = {
+        "model": model,
+        "instructions": search_prompt,
+        "input": [{"role": "user", "content": get_local_time_info() + "\nReply with exactly: ok"}],
+        "stream": False,
+        "tools": [{"type": tool} for tool in tools],
+    }
+    check_name = "search 形态 responses 请求（含 server-side 工具）"
+    try:
+        async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+            response = await client.post(
+                f"{api_url.rstrip('/')}/responses",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json", "Accept": "application/json"},
+                json=payload,
+            )
+        has_content = bool(response.text.strip())
+        if response.status_code == 200:
+            return _diagnose_check_result(
+                name=check_name,
+                status="ok" if has_content else "warning",
+                message=f"HTTP {response.status_code}; {'收到内容' if has_content else '返回为空'}",
+                start=start,
+                http_status=response.status_code,
+                content_type=response.headers.get("content-type", ""),
+                has_content=has_content,
+            )
+        return _diagnose_check_result(
+            name=check_name,
+            status="error",
+            message=f"HTTP {response.status_code}: {response.text[:100]}",
+            start=start,
+            http_status=response.status_code,
+            content_type=response.headers.get("content-type", ""),
+            has_content=has_content,
+        )
+    except httpx.TimeoutException as e:
+        return _diagnose_check_result(name=check_name, status="timeout", message=f"请求超时: {e}", start=start)
+    except httpx.RequestError as e:
+        return _diagnose_check_result(name=check_name, status="error", message=f"网络错误: {e}", start=start)
+
+
+def _xai_diagnosis(light_check: dict[str, Any], shape_check: dict[str, Any]) -> tuple[bool, str, str]:
+    light_ok = light_check.get("status") == "ok"
+    shape_ok = shape_check.get("status") == "ok"
+    if light_ok and shape_ok:
+        return True, "xAI Responses API 配置与 server-side 搜索工具均可用。", ""
+    if light_ok:
+        return (
+            False,
+            "轻量 responses 请求可用，但含 web_search/x_search 工具的搜索形态请求失败。",
+            "确认 XAI_MODEL 支持 server-side 工具（web_search/x_search）且账户已开通权限；可用 `smart-search config set XAI_MODEL <model>` 更换模型后复查。",
+        )
+    return (
+        False,
+        "xAI Responses API 连接失败。",
+        "检查 XAI_API_URL 与 XAI_API_KEY 是否正确、网络是否可达；修复后运行 `smart-search diagnose xai --format markdown` 复查。",
+    )
+
+
+async def diagnose_xai(timeout_seconds: float = 30.0) -> dict[str, Any]:
+    start = time.time()
+    api_url = config.xai_api_url
+    api_key = config.xai_api_key
+    model = config.xai_model
+    info = config.config_path_info()
+    result: dict[str, Any] = {
+        "ok": False,
+        "provider": "xai-responses",
+        "api_url": api_url,
+        "api_key": config._mask_api_key(api_key) if api_key else "未配置",
+        "model": model,
+        "timeout_seconds": timeout_seconds,
+        "config_file": info.get("config_file", ""),
+        "config_dir_source": info.get("config_dir_source", ""),
+        "checks": [],
+        "next_command": XAI_DIAGNOSE_COMMAND,
+    }
+    if not api_key:
+        result.update(
+            {
+                "error_type": "config_error",
+                "error": "缺少 xAI 配置: XAI_API_KEY",
+                "summary": "xAI 配置不完整。",
+                "recommendation": "请先运行 `smart-search setup`，或用 `smart-search config set XAI_API_KEY <key>` 填好缺失项。",
+                "missing": ["XAI_API_KEY"],
+                "elapsed_ms": _elapsed_ms(start),
+            }
+        )
+        return result
+    try:
+        tools = config.parse_xai_tools()
+    except ValueError as e:
+        result.update(
+            {
+                "error_type": "config_error",
+                "error": str(e),
+                "summary": "XAI_TOOLS 配置非法。",
+                "recommendation": "用 `smart-search config set XAI_TOOLS web_search,x_search` 恢复默认，或修正为白名单内取值。",
+                "elapsed_ms": _elapsed_ms(start),
+            }
+        )
+        return result
+    result["tools"] = tools
+
+    try:
+        light = await _test_primary_responses(api_url, api_key, model)
+    except httpx.TimeoutException as e:
+        light = {"status": "timeout", "message": f"轻量 responses 请求超时: {e}"}
+    except httpx.RequestError as e:
+        light = {"status": "error", "message": f"轻量 responses 网络错误: {e}"}
+    except Exception as e:
+        light = {"status": "error", "message": f"轻量 responses 运行错误: {e}"}
+    light_check = {
+        "name": "轻量 responses 请求",
+        "status": light.get("status", "error"),
+        "message": light.get("message", ""),
+        "response_time_ms": light.get("response_time_ms"),
+        "has_content": bool(light.get("status") == "ok"),
+    }
+    result["checks"].append(light_check)
+
+    shape_check = await _probe_xai_search_shape(api_url, api_key, model, tools, timeout_seconds)
+    result["checks"].append(shape_check)
+
+    ok, summary, recommendation = _xai_diagnosis(light_check, shape_check)
+    result.update(
+        {
+            "ok": ok,
+            "error_type": "" if ok else "network_error",
+            "error": "" if ok else summary,
+            "summary": summary,
+            "recommendation": recommendation,
+            "elapsed_ms": _elapsed_ms(start),
+        }
+    )
+    return result
+
+
 async def _test_primary_connection(api_url: str, api_key: str, model: str) -> dict[str, Any]:
     chat_test = await _test_primary_chat_completion(api_url, api_key, model)
 
@@ -1642,7 +1844,28 @@ async def _test_primary_connection(api_url: str, api_key: str, model: str) -> di
     return result
 
 
+async def _test_primary_responses(api_url: str, api_key: str, model: str) -> dict[str, Any]:
+    responses_url = f"{api_url.rstrip('/')}/responses"
+    start = time.time()
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        response = await client.post(
+            responses_url,
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "model": model,
+                "input": [{"role": "user", "content": "Reply with exactly: ok"}],
+                "stream": False,
+            },
+        )
+        response_time = _elapsed_ms(start)
+        if response.status_code != 200:
+            return {"status": "warning", "message": f"HTTP {response.status_code}: {response.text[:100]}", "response_time_ms": response_time}
+        return {"status": "ok", "message": f"xAI Responses API 可用 (HTTP {response.status_code})", "response_time_ms": response_time}
+
+
 async def _test_main_provider_connection(provider_config: dict[str, Any]) -> dict[str, Any]:
+    if provider_config["mode"] == "xai-responses":
+        return await _test_primary_responses(provider_config["api_url"], provider_config["api_key"], provider_config["model"])
     return await _test_primary_connection(provider_config["api_url"], provider_config["api_key"], provider_config["model"])
 
 

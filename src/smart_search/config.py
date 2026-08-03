@@ -6,21 +6,30 @@ from pathlib import Path
 class Config:
     _instance = None
     _SETUP_COMMAND = (
-        "Run `smart-search setup`, or configure OPENAI_COMPATIBLE_API_URL plus "
-        "OPENAI_COMPATIBLE_API_KEY, then run `smart-search doctor --format json`."
+        "Run `smart-search setup`, or configure XAI_API_KEY and/or "
+        "OPENAI_COMPATIBLE_API_URL plus OPENAI_COMPATIBLE_API_KEY, then run "
+        "`smart-search doctor --format json`."
     )
     _DEFAULT_MODEL = "grok-4.20-multi-agent-xhigh"
+    _DEFAULT_XAI_MODEL = "grok-4-fast"
+    _DEFAULT_XAI_TOOLS = "web_search,x_search"
     _DEFAULT_VALIDATION_LEVEL = "balanced"
     _DEFAULT_FALLBACK_MODE = "auto"
     _DEFAULT_MINIMUM_PROFILE = "standard"
+    _ALLOWED_XAI_TOOLS = {"web_search", "x_search"}
     _ALLOWED_VALIDATION_LEVELS = {"fast", "balanced", "strict"}
     _ALLOWED_FALLBACK_MODES = {"auto", "off"}
     _ALLOWED_MINIMUM_PROFILES = {"standard", "off"}
     _CONFIG_KEYS = {
+        "XAI_API_URL",
+        "XAI_API_KEY",
+        "XAI_MODEL",
+        "XAI_TOOLS",
         "OPENAI_COMPATIBLE_API_URL",
         "OPENAI_COMPATIBLE_API_KEY",
         "OPENAI_COMPATIBLE_MODEL",
         "OPENAI_COMPATIBLE_STREAM",
+        "SMART_SEARCH_MAIN_SEARCH_ROUTE",
         "SMART_SEARCH_VALIDATION_LEVEL",
         "SMART_SEARCH_FALLBACK_MODE",
         "SMART_SEARCH_MINIMUM_PROFILE",
@@ -208,10 +217,15 @@ class Config:
         config_data[key] = value
         self._save_config_file(config_data)
         if key in {
+            "XAI_API_URL",
+            "XAI_API_KEY",
+            "XAI_MODEL",
+            "XAI_TOOLS",
             "OPENAI_COMPATIBLE_API_URL",
             "OPENAI_COMPATIBLE_API_KEY",
             "OPENAI_COMPATIBLE_MODEL",
             "OPENAI_COMPATIBLE_STREAM",
+            "SMART_SEARCH_MAIN_SEARCH_ROUTE",
             "SMART_SEARCH_VALIDATION_LEVEL",
             "SMART_SEARCH_FALLBACK_MODE",
             "SMART_SEARCH_MINIMUM_PROFILE",
@@ -229,10 +243,15 @@ class Config:
                 config_data.pop(old_key, None)
         self._save_config_file(config_data)
         if key in {
+            "XAI_API_URL",
+            "XAI_API_KEY",
+            "XAI_MODEL",
+            "XAI_TOOLS",
             "OPENAI_COMPATIBLE_API_URL",
             "OPENAI_COMPATIBLE_API_KEY",
             "OPENAI_COMPATIBLE_MODEL",
             "OPENAI_COMPATIBLE_STREAM",
+            "SMART_SEARCH_MAIN_SEARCH_ROUTE",
             "SMART_SEARCH_VALIDATION_LEVEL",
             "SMART_SEARCH_FALLBACK_MODE",
             "SMART_SEARCH_MINIMUM_PROFILE",
@@ -287,6 +306,47 @@ class Config:
     @property
     def openai_compatible_stream(self) -> bool:
         return (self._get_config_value("OPENAI_COMPATIBLE_STREAM", "true") or "true").lower() in ("true", "1", "yes")
+
+    @property
+    def xai_api_url(self) -> str:
+        return self._get_config_value("XAI_API_URL", "https://api.x.ai/v1") or "https://api.x.ai/v1"
+
+    @property
+    def xai_api_key(self) -> str | None:
+        return self._get_config_value("XAI_API_KEY")
+
+    @property
+    def xai_model(self) -> str:
+        return self._get_config_value("XAI_MODEL") or self._DEFAULT_XAI_MODEL
+
+    @property
+    def xai_tools_raw(self) -> str:
+        return self._get_config_value("XAI_TOOLS", self._DEFAULT_XAI_TOOLS) or self._DEFAULT_XAI_TOOLS
+
+    def parse_xai_tools(self, raw: str | None = None) -> list[str]:
+        raw = raw or self.xai_tools_raw
+        tools: list[str] = []
+        invalid: list[str] = []
+        seen: set[str] = set()
+        for item in raw.split(","):
+            tool = item.strip().lower()
+            if not tool:
+                continue
+            if tool not in self._ALLOWED_XAI_TOOLS:
+                invalid.append(tool)
+                continue
+            if tool not in seen:
+                seen.add(tool)
+                tools.append(tool)
+        if invalid:
+            allowed = ", ".join(sorted(self._ALLOWED_XAI_TOOLS))
+            invalid_text = ", ".join(invalid)
+            raise ValueError(f"Invalid XAI_TOOLS: {invalid_text}. Supported values: {allowed}")
+        return tools
+
+    @property
+    def main_search_route_raw(self) -> str:
+        return self._get_config_value("SMART_SEARCH_MAIN_SEARCH_ROUTE", "") or ""
 
     def _validated_enum(self, key: str, default: str, allowed: set[str]) -> str:
         value = (self._get_config_value(key, default) or default).strip().lower()
@@ -491,7 +551,8 @@ class Config:
     def get_config_info(self) -> dict:
         config_parameter_errors: list[str] = []
         explicit_main_configured = bool(
-            self.openai_compatible_api_url and self.openai_compatible_api_key
+            self.xai_api_key
+            or (self.openai_compatible_api_url and self.openai_compatible_api_key)
         )
         if explicit_main_configured:
             config_status = "ok: 配置完整"
@@ -518,10 +579,15 @@ class Config:
             config_status = f"config_error: {'; '.join(config_parameter_errors)}"
 
         return {
+            "XAI_API_URL": self.xai_api_url if self.xai_api_key else "未配置",
+            "XAI_API_KEY": self._mask_api_key(self.xai_api_key) if self.xai_api_key else "未配置",
+            "XAI_MODEL": self.xai_model if self.xai_api_key else "未配置",
+            "XAI_TOOLS": self.xai_tools_raw if self.xai_api_key else "未配置",
             "OPENAI_COMPATIBLE_API_URL": self.openai_compatible_api_url or "未配置",
             "OPENAI_COMPATIBLE_API_KEY": self._mask_api_key(self.openai_compatible_api_key) if self.openai_compatible_api_key else "未配置",
             "OPENAI_COMPATIBLE_MODEL": self.openai_compatible_model,
             "OPENAI_COMPATIBLE_STREAM": self.openai_compatible_stream,
+            "SMART_SEARCH_MAIN_SEARCH_ROUTE": self.main_search_route_raw or "auto",
             "SMART_SEARCH_VALIDATION_LEVEL": validation_level,
             "SMART_SEARCH_FALLBACK_MODE": fallback_mode,
             "SMART_SEARCH_MINIMUM_PROFILE": minimum_profile,
@@ -557,7 +623,10 @@ class Config:
             "JINA_READER_API_URL": self.jina_reader_api_url,
             "JINA_RESPOND_WITH": self.jina_respond_with,
             "JINA_TIMEOUT_SECONDS": self.jina_timeout,
-            "primary_api_mode": "chat-completions" if (self.openai_compatible_api_url and self.openai_compatible_api_key) else "未配置",
+            "primary_api_mode": (
+                "chat-completions" if (self.openai_compatible_api_url and self.openai_compatible_api_key)
+                else ("xai-responses" if self.xai_api_key else "未配置")
+            ),
             "primary_api_mode_source": "config_file" if explicit_main_configured else "default",
             "config_file": str(self.config_file),
             "config_dir": str(self.config_file.parent),

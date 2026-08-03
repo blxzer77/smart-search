@@ -968,13 +968,15 @@ def _setup_status_from_values(values: dict[str, str]) -> dict[str, Any]:
         return bool(values.get(key))
 
     main_configured: set[str] = set()
+    if has("XAI_API_KEY"):
+        main_configured.add("xai-responses")
     if has("OPENAI_COMPATIBLE_API_URL") and has("OPENAI_COMPATIBLE_API_KEY"):
         main_configured.add("openai-compatible")
 
     status = {
         "main_search": {
-            "configured": [provider for provider in ("openai-compatible",) if provider in main_configured],
-            "fallback_chain": ["openai-compatible"],
+            "configured": [provider for provider in ("xai-responses", "openai-compatible") if provider in main_configured],
+            "fallback_chain": ["xai-responses", "openai-compatible"],
         },
         "web_search": {
             "configured": [
@@ -1224,12 +1226,12 @@ def _setup_choice(prompt: str, choices: set[str], default: str) -> str:
 def _prompt_main_search(values: dict[str, str], current: dict[str, str], lang: str) -> None:
     status = _setup_status_from_values(_merge_setup_values(current, values))
     configured = status["main_search"]["configured"]
-    default_selected = configured or ["openai-compatible"]
+    default_selected = configured or ["xai-responses"]
     _write_stderr(
         _t(
             lang,
-            "\n[1/3 必选] main_search 主搜索\n用途: 负责综合搜索回答和最终合成。\n推荐: 配置 OpenAI-compatible 中转服务。\n",
-            "\n[1/3 Required] main_search primary search\nPurpose: broad search answers and final synthesis.\nRecommended: configure an OpenAI-compatible relay.\n",
+            "\n[1/3 必选] main_search 主搜索\n用途: 负责综合搜索回答和最终合成。\n推荐: 二选一——xAI Responses（Grok，自带 server-side 联网）或 OpenAI-compatible 中转服务。\n",
+            "\n[1/3 Required] main_search primary search\nPurpose: broad search answers and final synthesis.\nRecommended: pick one — xAI Responses (Grok with server-side web search) or an OpenAI-compatible relay.\n",
         )
     )
     selected = _prompt_provider_multi_select(
@@ -1238,10 +1240,35 @@ def _prompt_main_search(values: dict[str, str], current: dict[str, str], lang: s
             "选择 main_search provider",
             "Choose main_search providers",
         ),
-        ["openai-compatible"],
+        ["xai-responses", "openai-compatible"],
         default_selected,
         lang,
     )
+    if "xai-responses" in selected:
+        values["XAI_API_KEY"] = _prompt_value(
+            "XAI_API_KEY",
+            _t(
+                lang,
+                "xAI API key（console.x.ai）",
+                "xAI API key (console.x.ai)",
+            ),
+            current.get("XAI_API_KEY", ""),
+            lang=lang,
+        )
+        values["XAI_MODEL"] = _prompt_value(
+            "XAI_MODEL",
+            _t(lang, "xAI 模型（默认 grok-4-fast）", "xAI model (default grok-4-fast)"),
+            current.get("XAI_MODEL", ""),
+            optional=True,
+            lang=lang,
+        )
+        values["XAI_TOOLS"] = _prompt_value(
+            "XAI_TOOLS",
+            _t(lang, "xAI server-side 工具（web_search,x_search）", "xAI server-side tools (web_search,x_search)"),
+            current.get("XAI_TOOLS", ""),
+            optional=True,
+            lang=lang,
+        )
     if "openai-compatible" in selected:
         values["OPENAI_COMPATIBLE_API_URL"] = _prompt_value(
             "OPENAI_COMPATIBLE_API_URL",
@@ -1278,6 +1305,28 @@ def _prompt_main_search(values: dict[str, str], current: dict[str, str], lang: s
             values["OPENAI_COMPATIBLE_STREAM"] = "true"
         elif stream_default:
             values["OPENAI_COMPATIBLE_STREAM"] = "false"
+
+    merged_status = _setup_status_from_values(_merge_setup_values(current, values))
+    main_configured = [provider for provider in ("xai-responses", "openai-compatible") if provider in merged_status["main_search"]["configured"]]
+    if len(main_configured) < 2:
+        return
+    current_route = current.get("SMART_SEARCH_MAIN_SEARCH_ROUTE", "")
+    route_choices = [
+        {"name": "xAI Responses 优先（xai-responses,openai-compatible）", "value": "xai-responses,openai-compatible"},
+        {"name": "OpenAI-compatible 优先（openai-compatible,xai-responses）", "value": "openai-compatible,xai-responses"},
+        {"name": _t(lang, "仅用 xAI Responses（不跨路由）", "xAI Responses only (no cross-route fallback)"), "value": "xai-responses"},
+        {"name": _t(lang, "仅用 OpenAI-compatible（不跨路由）", "OpenAI-compatible only (no cross-route fallback)"), "value": "openai-compatible"},
+    ]
+    default_route = current_route if current_route in {choice["value"] for choice in route_choices} else "xai-responses,openai-compatible"
+    values["SMART_SEARCH_MAIN_SEARCH_ROUTE"] = _prompt_select(
+        _t(
+            lang,
+            "两个 main_search 均已配置，选择优先路由",
+            "Both main_search providers are configured; choose the priority route",
+        ),
+        route_choices,
+        default_route,
+    )
 
 
 def _prompt_docs_search(values: dict[str, str], current: dict[str, str], lang: str) -> None:
@@ -1559,12 +1608,12 @@ def _write_setup_examples(lang: str) -> None:
         _t(
             lang,
             "\n不知道怎么填: 先配齐 main_search + docs_search + web_fetch。\n"
-            "  main_search: OpenAI-compatible（示例: https://api.openai.com/v1）\n"
+            "  main_search: 二选一即可——xAI Responses（填 XAI_API_KEY）或 OpenAI-compatible（示例: https://api.openai.com/v1）；都配则需选优先路由。\n"
             "  docs_search: 文档/API 优先 Context7；官方域名、论文和低噪声发现再配 Exa。\n"
             "  web_fetch: Tavily 官方地址是 https://api.tavily.com；号池填 https://<host>/api/tavily。\n"
             "  key 都填你自己控制台里的；Firecrawl 可之后再补；Zhipu 只在显式 legacy 兼容时手动配置。\n",
             "\nIf unsure: first configure main_search + docs_search + web_fetch.\n"
-            "  main_search: OpenAI-compatible (example: https://api.openai.com/v1)\n"
+            "  main_search: pick ONE — xAI Responses (set XAI_API_KEY) or OpenAI-compatible (example: https://api.openai.com/v1); if both are set you must choose a priority route.\n"
             "  docs_search: Context7 for docs/API first; add Exa for official domains, papers, and low-noise discovery.\n"
             "  web_fetch: official Tavily endpoint is https://api.tavily.com; pooled endpoints use https://<host>/api/tavily.\n"
             "  Use keys from your own provider consoles. Firecrawl can be added later; configure Zhipu only for explicit legacy compatibility.\n",
@@ -1608,10 +1657,15 @@ def _run_advanced_setup_prompts(values: dict[str, str], current: dict[str, str],
         )
     )
     prompts = [
+        ("XAI_API_URL", "xAI Responses API URL", True),
+        ("XAI_API_KEY", "xAI API key", True),
+        ("XAI_MODEL", "xAI model", True),
+        ("XAI_TOOLS", "xAI server-side tools (web_search,x_search)", True),
         ("OPENAI_COMPATIBLE_API_URL", "OpenAI-compatible API URL", True),
         ("OPENAI_COMPATIBLE_API_KEY", "OpenAI-compatible API key", True),
         ("OPENAI_COMPATIBLE_MODEL", "OpenAI-compatible model", True),
         ("OPENAI_COMPATIBLE_STREAM", "OpenAI-compatible stream mode (true/false)", True),
+        ("SMART_SEARCH_MAIN_SEARCH_ROUTE", "Main search route CSV (xai-responses,openai-compatible)", True),
         ("SMART_SEARCH_VALIDATION_LEVEL", "Validation level (fast/balanced/strict)", True),
         ("SMART_SEARCH_FALLBACK_MODE", "Fallback mode (auto/off)", True),
         ("SMART_SEARCH_MINIMUM_PROFILE", "Minimum profile (standard/off)", True),
@@ -1729,6 +1783,9 @@ async def _run_async(args: argparse.Namespace) -> int:
         if args.diagnose_target == "openai-compatible":
             data = await service.diagnose_openai_compatible(timeout_seconds=args.timeout)
             return _print_result("diagnose", data, args.format, args.output)
+        if args.diagnose_target == "xai":
+            data = await service.diagnose_xai(timeout_seconds=args.timeout)
+            return _print_result("diagnose", data, args.format, args.output)
         return _print_result(
             "diagnose",
             {"ok": False, "error_type": "parameter_error", "error": f"Unknown diagnose target: {args.diagnose_target}"},
@@ -1754,10 +1811,15 @@ def _run_config(args: argparse.Namespace) -> int:
 
 def _run_setup(args: argparse.Namespace) -> int:
     values = {
+        "XAI_API_URL": args.xai_api_url,
+        "XAI_API_KEY": args.xai_api_key,
+        "XAI_MODEL": args.xai_model,
+        "XAI_TOOLS": args.xai_tools,
         "OPENAI_COMPATIBLE_API_URL": args.openai_compatible_api_url,
         "OPENAI_COMPATIBLE_API_KEY": args.openai_compatible_api_key,
         "OPENAI_COMPATIBLE_MODEL": args.openai_compatible_model,
         "OPENAI_COMPATIBLE_STREAM": args.openai_compatible_stream,
+        "SMART_SEARCH_MAIN_SEARCH_ROUTE": args.main_search_route,
         "SMART_SEARCH_VALIDATION_LEVEL": args.validation_level,
         "SMART_SEARCH_FALLBACK_MODE": args.fallback_mode,
         "SMART_SEARCH_MINIMUM_PROFILE": args.minimum_profile,
@@ -1832,7 +1894,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True, parser_class=SmartSearchArgumentParser)
 
     search_parser = sub.add_parser(
-        "search", aliases=COMMAND_ALIASES["search"], help="Run OpenAI-compatible web search."
+        "search", aliases=COMMAND_ALIASES["search"], help="Run live web search via the configured main_search route (xAI Responses or OpenAI-compatible)."
     )
     search_parser.set_defaults(command="search")
     search_parser.add_argument("query")
@@ -1965,7 +2027,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run focused troubleshooting checks for a provider.",
     )
     diagnose_parser.set_defaults(command="diagnose")
-    diagnose_parser.add_argument("diagnose_target", choices=["openai-compatible"])
+    diagnose_parser.add_argument("diagnose_target", choices=["openai-compatible", "xai"])
     diagnose_parser.add_argument("--timeout", type=float, default=30, metavar="SECONDS", help="Per search-shape probe timeout in seconds.")
     diagnose_parser.add_argument("--format", choices=["json", "markdown"], default="markdown")
     diagnose_parser.add_argument("--output", default="", help="Write rendered output to a file.")
@@ -1977,6 +2039,11 @@ def build_parser() -> argparse.ArgumentParser:
     setup_parser.add_argument("--non-interactive", action="store_true", help="Only save values passed as flags.")
     setup_parser.add_argument("--lang", choices=["zh", "en"], default="", help="Interactive setup language.")
     setup_parser.add_argument("--advanced", action="store_true", help="Show every low-level config key in interactive setup.")
+    setup_parser.add_argument("--xai-api-url", default="", help="Save XAI_API_URL.")
+    setup_parser.add_argument("--xai-api-key", default="", help="Save XAI_API_KEY.")
+    setup_parser.add_argument("--xai-model", default="", help="Save XAI_MODEL.")
+    setup_parser.add_argument("--xai-tools", default="", help="Save XAI_TOOLS (web_search,x_search).")
+    setup_parser.add_argument("--main-search-route", default="", help="Save SMART_SEARCH_MAIN_SEARCH_ROUTE (ordered CSV of xai-responses,openai-compatible).")
     setup_parser.add_argument("--openai-compatible-api-url", default="", help="Save OPENAI_COMPATIBLE_API_URL.")
     setup_parser.add_argument("--openai-compatible-api-key", default="", help="Save OPENAI_COMPATIBLE_API_KEY.")
     setup_parser.add_argument("--openai-compatible-model", default="", help="Save OPENAI_COMPATIBLE_MODEL.")
