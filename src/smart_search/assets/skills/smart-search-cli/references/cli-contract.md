@@ -132,7 +132,7 @@ Map output includes `ok`, `base_url`, `results`, `response_time`, `url`, and `el
 
 Research executor output includes `ok`, `mode=deep_research_execution`, `query_mode=research`, `question`, `budget`, `research_plan`, `routing_decision`, `stage_results`, `discovery_sources`, `final_answer`, `content`, `citations`, `evidence_items`, `gap_check`, `provider_attempts`, `providers_used`, `fallback_used`, `degraded`, `route_policy_version`, `evidence_dir`, `minimum_profile_ok`, `capability_status`, and `elapsed_ms`. The embedded `research_plan` carries `intent_signals`, `decomposition`, `capability_plan`, `evidence_policy`, `steps`, and `gap_check`. Citations must come only from fetched/read `evidence_items`; discovery sources are candidates until fetched. If evidence cannot close, `research` returns degraded gaps instead of unsupported claims.
 
-Diagnostic output masks keys, reports `config_file` / `config_dir` / `config_dir_source` / `default_config_file` / Windows legacy config metadata / `config_dir_override_value` / `config_dir_override_matches_default` / `log_dir_config_value` / `resolved_log_dir` / `evidence_dir_config_value` / `resolved_evidence_dir` / `file_logging_enabled` / `config_sources` / `primary_api_mode` / `primary_api_mode_source` / provider timeout values / `capability_status` / `minimum_profile_ok`, and includes `main_search_connection_tests` plus connection test objects for Exa, Tavily, Zhipu, Context7, and Firecrawl. `primary_connection_test` remains as a backward-compatible alias for the first configured main provider check. OpenAI-compatible provider health must be validated through `/chat/completions`; `/models` is supplementary metadata and must not be the health gate. Firecrawl currently reports whether `FIRECRAWL_API_KEY` is configured; it is not a live Firecrawl request.
+Diagnostic output masks keys, reports `config_file` / `config_dir` / `config_dir_source` / `default_config_file` / Windows legacy config metadata / `config_dir_override_value` / `config_dir_override_matches_default` / `log_dir_config_value` / `resolved_log_dir` / `evidence_dir_config_value` / `resolved_evidence_dir` / `file_logging_enabled` / `config_sources` / `primary_api_mode` / `primary_api_mode_source` / provider timeout values / `capability_status` / `minimum_profile_ok`, and includes `main_search_connection_tests` plus connection test objects for Exa, Tavily, Zhipu, Context7, and Firecrawl. `primary_connection_test` remains as a backward-compatible alias for the first configured main provider check. OpenAI-compatible provider health must be validated through `/chat/completions`; `/models` is supplementary metadata and must not be the health gate. xAI Responses health is validated through `/responses` (a lightweight probe in `doctor`; `diagnose xai` adds a search-shape probe with server-side tools). Firecrawl currently reports whether `FIRECRAWL_API_KEY` is configured; it is not a live Firecrawl request.
 
 When a Windows user reports that different versions seem to use different config paths, diagnose in this order: `config_dir_source`, `config_dir_override_value`, `config_dir_override_matches_default`, then `legacy_windows_config_exists`. A source of `environment` with `config_dir_override_matches_default=true` means the active path is pinned by `SMART_SEARCH_CONFIG_DIR` but is functionally the same as the current default. Do not delete either config file or the user-level override until the upgraded CLI has been verified with `config path` and `doctor` checks.
 
@@ -258,14 +258,14 @@ Agent timeout handling contract:
 
 ## Provider Routing
 
-- `search` builds `main_search` from `OPENAI_COMPATIBLE_API_URL` + `OPENAI_COMPATIBLE_API_KEY`, which registers OpenAI-compatible Chat Completions.
+- `search` builds `main_search` from `XAI_API_KEY` (xAI Responses with server-side `web_search`/`x_search` tools) and/or `OPENAI_COMPATIBLE_API_URL` + `OPENAI_COMPATIBLE_API_KEY` (Chat Completions). One is enough; when both are configured, `SMART_SEARCH_MAIN_SEARCH_ROUTE` (ordered CSV of `xai-responses,openai-compatible`) sets priority, and a single entry disables cross-route fallback.
 - OpenAI-compatible relays/gateways use Chat Completions `/chat/completions` through `OPENAI_COMPATIBLE_*`.
 - `OPENAI_COMPATIBLE_STREAM` and `search --stream/--no-stream` affect only the OpenAI-compatible Chat Completions transport for search/fetch. They do not change provider-internal ranking/URL description tasks.
 - Legacy `SMART_SEARCH_API_URL`, `SMART_SEARCH_API_KEY`, `SMART_SEARCH_API_MODE`, and `SMART_SEARCH_MODEL` are unsupported config keys. `config set` / `config unset` must return a parameter error for them.
 - Standard minimum profile requires `main_search`, `docs_search`, and fetch capability. Missing required capabilities produce a configuration error.
 - Jina satisfies fetch capability only when `JINA_API_KEY` is configured. Anonymous Jina Reader does not satisfy `standard`.
 - Same-capability fallback is allowed; cross-capability fallback is not. Context7 is not used for unrelated broad web queries, and page extraction providers are not used as docs search providers.
-- `main_search`: OpenAI-compatible Chat Completions.
+- `main_search`: xAI Responses (`XAI_*`) or OpenAI-compatible Chat Completions (`OPENAI_COMPATIBLE_*`), ordered by `SMART_SEARCH_MAIN_SEARCH_ROUTE` when both are configured (default `xai-responses -> openai-compatible`).
 - `web_search`: `search` runs bilingual web_search source discovery through Tavily / Firecrawl when configured. Zhipu is deprecated from default routing and is not selected automatically for Chinese/current/domestic searches.
 - `docs_search`: explicit keyword-based docs/API/library/framework intent. Context7 is first for library/API/docs intent, then Exa for official-domain, paper, product-page, trusted-site, or low-noise supplemental discovery.
 - Fetch capability: Tavily first, then Jina Reader with `JINA_API_KEY`, then Firecrawl.
@@ -282,7 +282,7 @@ Agent timeout handling contract:
 - `context7-library` and `context7-docs` use Context7 only.
 - Runtime config priority is environment variables first, then local config file, then defaults.
 - `setup` and `config` read/write the local Smart Search config file and do not call providers.
-- Use `config set OPENAI_COMPATIBLE_MODEL ...` to change the main-search model.
+- Use `config set OPENAI_COMPATIBLE_MODEL ...` (or `XAI_MODEL ...` for the xAI route) to change the main-search model; use `config set SMART_SEARCH_MAIN_SEARCH_ROUTE ...` to change route priority.
 
 ## Routing Heuristics
 

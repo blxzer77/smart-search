@@ -22,7 +22,7 @@ Use the local `smart-search` command as the default execution layer for web rese
 11. Use `smart-search exa-similar` when the user gives a representative URL and wants related pages or neighboring sources.
 12. Use `smart-search fetch` when the user gives a URL or a claim depends on page content.
 13. Use `smart-search map` when a documentation site or domain structure matters.
-14. To change the main-search model, use `smart-search config set OPENAI_COMPATIBLE_MODEL ...`.
+14. To change the main-search model, use `smart-search config set OPENAI_COMPATIBLE_MODEL ...` (or `XAI_MODEL ...` for the xAI route).
 15. For current-news, policy, finance, health, or other high-risk facts, do not answer from broad `search.content` alone. Use the bilingual search pair plus intent-specific sources: Context7 for docs/API, Exa for official/trusted domains or papers, then `fetch` key pages and summarize only what fetched text supports.
 16. Use `smart-search research "question" --format json` when the user wants the CLI to run live Deep Research end to end instead of only planning. It executes plan -> discover -> fetch/read -> gap check -> evidence-only synthesis.
 17. Preserve command lines and source URLs in your answer. Prefer citing fetched pages or `primary_sources`; treat `extra_sources` as follow-up candidates, not verified evidence for generated claims.
@@ -151,7 +151,7 @@ smart-search research "https://example.com/source" --format json
 
 ## Provider Routing
 
-- `search` builds `main_search` from `OPENAI_COMPATIBLE_API_URL` + `OPENAI_COMPATIBLE_API_KEY`, which registers OpenAI-compatible Chat Completions.
+- `search` builds `main_search` from `XAI_API_KEY` (xAI Responses with server-side `web_search`/`x_search` tools) and/or `OPENAI_COMPATIBLE_API_URL` + `OPENAI_COMPATIBLE_API_KEY` (Chat Completions). One is enough; when both are configured, `SMART_SEARCH_MAIN_SEARCH_ROUTE` (ordered CSV of `xai-responses,openai-compatible`) sets priority, and a single entry disables cross-route fallback.
 - `search` is the default first hop for broad exploration, current synthesis, and routing metadata.
 - OpenAI-compatible relays/gateways use Chat Completions `/chat/completions` through `OPENAI_COMPATIBLE_*`.
 - `OPENAI_COMPATIBLE_STREAM=true` or `search --stream` sets `stream=true` only for OpenAI-compatible `search` and provider-side `fetch`; it is a relay compatibility switch and does not affect URL description or source ranking.
@@ -311,6 +311,9 @@ smart-search config set OPENAI_COMPATIBLE_API_URL "https://api.openai.com/v1" --
 smart-search config set OPENAI_COMPATIBLE_API_KEY "key" --format json
 smart-search config set OPENAI_COMPATIBLE_MODEL "model-id" --format json
 smart-search config set OPENAI_COMPATIBLE_STREAM "true" --format json
+smart-search config set XAI_API_KEY "key" --format json
+smart-search config set XAI_MODEL "grok-4-fast" --format json
+smart-search config set SMART_SEARCH_MAIN_SEARCH_ROUTE "xai-responses,openai-compatible" --format json
 smart-search config set EXA_API_KEY "key" --format json
 smart-search config set CONTEXT7_API_KEY "key" --format json
 smart-search config set ZHIPU_API_KEY "key" --format json
@@ -380,7 +383,7 @@ smart-search fetch "https://example.com/source" --format markdown --output fetch
 - Do not use legacy MCP tool names in prompts, notes, or generated instructions for this workflow.
 - Treat key rotation as a hard safety gate when previous key values were pasted into chat or logs.
 - For provider architecture maintenance, verify the distributable contract rather than the current developer machine's wrappers or local config. Keep fallback same-capability only.
-- `main_search` is OpenAI-compatible Chat Completions configured through `OPENAI_COMPATIBLE_*`. Do not fabricate a second `main_search` provider or reuse another capability's URL/key as a `main_search` fallback.
+- `main_search` is a user choice between xAI Responses (`XAI_*`) and OpenAI-compatible Chat Completions (`OPENAI_COMPATIBLE_*`). Never send xAI server tools (`web_search`, `x_search`) or xAI-only parameters into the OpenAI-compatible route, and never point the xAI route at `/chat/completions`. Do not fabricate additional `main_search` providers or reuse another capability's URL/key as a `main_search` fallback.
 
 ## Supporting Reference
 

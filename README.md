@@ -64,11 +64,12 @@ smart-search setup
 smart-search doctor --format json
 ```
 
-2. If OpenAI-compatible `search` hangs or times out, generate the short troubleshooting report:
+2. If OpenAI-compatible or xAI `search` hangs or times out, generate the short troubleshooting report:
 
 ```powershell
 smart-search doctor --format markdown
 smart-search diagnose openai-compatible --format markdown
+smart-search diagnose xai --format markdown
 ```
 
 3. Run a normal live search:
@@ -93,7 +94,7 @@ smart-search research "Deep research recent Bitcoin market movement" --budget de
 
 | Capability | Main commands | Providers | Role |
 | --- | --- | --- | --- |
-| `main_search` | `search` | OpenAI-compatible Chat Completions | Broad answer generation and synthesis |
+| `main_search` | `search` | xAI Responses **or** OpenAI-compatible Chat Completions (user choice; `SMART_SEARCH_MAIN_SEARCH_ROUTE` sets priority when both are configured) | Broad answer generation and synthesis |
 | `docs_search` | `context7-library`, `context7-docs`, `exa-search` | Context7, Exa | Official docs, SDKs, APIs, framework/library evidence |
 | `web_search` | Bilingual source discovery inside `search`; `zhipu-search` only for deprecated manual compatibility | Tavily, Firecrawl; Zhipu Web Search API only when explicitly requested | Chinese and English web discovery for every normal research question |
 | `web_fetch` | `fetch` | Tavily, Jina Reader, Firecrawl | Exact URL content extraction for evidence |
@@ -104,7 +105,7 @@ Fallback is same-capability only:
 
 | Capability | Fallback chain |
 | --- | --- |
-| `main_search` | OpenAI-compatible |
+| `main_search` | Ordered by `SMART_SEARCH_MAIN_SEARCH_ROUTE`; default `xAI Responses -> OpenAI-compatible` |
 | `docs_search` | Context7 for library/API/docs intent; Exa for official domains, papers, product pages, and trusted-site discovery |
 | `web_search` | Tavily -> Firecrawl; Zhipu only when explicitly selected for the deprecated legacy command |
 | `web_fetch` | Tavily -> Jina Reader with `JINA_API_KEY` -> Firecrawl |
@@ -195,6 +196,7 @@ Use `smart-search setup` for normal configuration. Environment variables remain 
 
 | Provider / route | Used for | Main config keys | Official docs | Key / dashboard |
 | --- | --- | --- | --- | --- |
+| xAI Responses (Grok) | Primary live search with server-side `web_search` / `x_search` tools | `XAI_API_KEY`, `XAI_API_URL`, `XAI_MODEL`, `XAI_TOOLS` | [xAI docs](https://docs.x.ai/) | [xAI console](https://console.x.ai/) |
 | OpenAI-compatible Chat Completions | Primary live search through OpenAI or a compatible relay | `OPENAI_COMPATIBLE_API_URL`, `OPENAI_COMPATIBLE_API_KEY`, `OPENAI_COMPATIBLE_MODEL`, `OPENAI_COMPATIBLE_STREAM` | [OpenAI platform docs](https://platform.openai.com/docs) | [OpenAI API keys](https://platform.openai.com/api-keys) or your relay provider |
 | Exa | Low-noise official docs, API, paper, product, trusted-page discovery | `EXA_API_KEY` | [Exa docs](https://docs.exa.ai/) | [Exa API keys](https://dashboard.exa.ai/api-keys) |
 | Context7 | SDK, library, framework, and API documentation fallback | `CONTEXT7_API_KEY`, `CONTEXT7_BASE_URL` | [Context7 docs](https://context7.com/docs) | [Context7](https://context7.com/) |
@@ -205,6 +207,7 @@ Use `smart-search setup` for normal configuration. Environment variables remain 
 
 Important boundaries:
 
+- `main_search` is a user choice between xAI Responses and OpenAI-compatible Chat Completions — one is enough. When both are configured, `SMART_SEARCH_MAIN_SEARCH_ROUTE` (ordered CSV of `xai-responses,openai-compatible`) decides priority; a single-entry route disables cross-route fallback. Guided `setup` forces an explicit priority choice when both providers are present. xAI server tools (`web_search`, `x_search`) are only ever sent to the xAI Responses route; the OpenAI-compatible route never carries xAI-only parameters.
 - OpenAI-compatible relays and gateways use the Chat Completions `/chat/completions` route through `OPENAI_COMPATIBLE_*`.
 - `OPENAI_COMPATIBLE_STREAM=true` or `smart-search search --stream` sets `stream=true` only for OpenAI-compatible `search` and provider-side `fetch` calls. It is a relay compatibility switch for long requests and does not change URL description or source ranking.
 - Legacy `SMART_SEARCH_API_URL`, `SMART_SEARCH_API_KEY`, `SMART_SEARCH_API_MODE`, and `SMART_SEARCH_MODEL` are not supported config keys. Use `OPENAI_COMPATIBLE_*` explicitly.
@@ -219,6 +222,8 @@ Non-interactive setup example:
 
 ```powershell
 smart-search setup --non-interactive `
+  --xai-api-key "your-xai-key" `
+  --main-search-route "xai-responses,openai-compatible" `
   --openai-compatible-api-url "https://api.openai.com/v1" `
   --openai-compatible-api-key "your-openai-or-relay-key" `
   --openai-compatible-model "gpt-4.1" `
@@ -239,7 +244,7 @@ For explicit legacy Zhipu compatibility only, `smart-search setup --non-interact
 
 Minimum profile defaults to `standard`, requiring at least:
 
-- one `main_search` provider: OpenAI-compatible;
+- one `main_search` provider: xAI Responses (`XAI_API_KEY`) or OpenAI-compatible;
 - one `docs_search` provider: Exa or Context7;
 - one `web_fetch` provider: Tavily, Jina with `JINA_API_KEY`, or Firecrawl.
 
@@ -252,6 +257,7 @@ Local config and evidence paths:
 - `SMART_SEARCH_CONFIG_DIR` is an advanced override for CI, containers, sandboxes, or portable installs.
 - `research` evidence defaults to `evidence` under the active config directory, for example `%LOCALAPPDATA%\smart-search\evidence` on Windows.
 - `SMART_SEARCH_EVIDENCE_DIR` overrides the evidence root. Relative values resolve under the active config directory; absolute values are used as-is.
+- `SMART_SEARCH_MAIN_SEARCH_ROUTE` orders the `main_search` route when both xAI Responses and OpenAI-compatible are configured (ordered CSV, e.g. `xai-responses,openai-compatible`); a single entry disables cross-route fallback. When unset, configured providers resolve in default chain order (`xai-responses` first).
 - `SMART_SEARCH_RESEARCH_PREFERRED_PROVIDERS` and `SMART_SEARCH_RESEARCH_DISABLED_PROVIDERS` are advanced `research` routing overrides. They accept provider CSV values and can only reorder or disable providers inside existing capability boundaries.
 - `SMART_SEARCH_CACHE` controls the in-process provider TTL cache for `research` (`on` by default; set `off` to disable). Cache tiers: `web_fetch` 7d, `docs_search` 1h, `web_search` 10min; time-sensitive queries skip `web_search`/`docs_search` caching; `main_search` is never cached.
 - Earlier Windows source builds defaulted to `~\.config\smart-search\config.json`, while some installs were already pinned to `%LOCALAPPDATA%\smart-search` through `SMART_SEARCH_CONFIG_DIR`. If the new Windows default file is missing but the old home config exists, Smart Search reads the old file as `legacy_windows_home` so upgrades do not lose configuration. `config path` and `doctor` report the active/default/legacy config paths, `SMART_SEARCH_CONFIG_DIR`, `SMART_SEARCH_EVIDENCE_DIR`, and the resolved evidence root.
@@ -275,7 +281,7 @@ Provider timeouts:
 | `context7-library` | `c7`, `ctx7` | Resolve Context7 library candidates |
 | `context7-docs` | `c7d`, `c7docs`, `ctx7-docs` | Fetch Context7 docs |
 | `doctor` | `d` | Masked config and connectivity check |
-| `diagnose` | `diag` | Focused OpenAI-compatible troubleshooting report |
+| `diagnose` | `diag` | Focused OpenAI-compatible or xAI troubleshooting report |
 | `setup` | `init` | Interactive or scripted setup |
 | `config` | `cfg` | Local config read/write |
 
@@ -358,7 +364,7 @@ smart-search doctor --format markdown
 smart-search diagnose openai-compatible --format markdown
 ```
 
-The diagnose report masks the API key and says whether the problem is missing config, the upstream/relay hanging on the real Smart Search prompt, or a stream/no-stream compatibility mismatch.
+The diagnose report masks the API key and says whether the problem is missing config, the upstream/relay hanging on the real Smart Search prompt, or a stream/no-stream compatibility mismatch. `smart-search diagnose xai --format markdown` is the equivalent report for the xAI Responses route (config, lightweight `/responses` probe, and a search-shape probe with server-side tools).
 
 If search is slow:
 

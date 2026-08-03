@@ -86,7 +86,7 @@ smart-search research "深度搜索一下最近的比特币行情" --budget deep
 
 | 能力 | 主要命令 | Provider | 负责什么 |
 | --- | --- | --- | --- |
-| `main_search` | `search` | OpenAI-compatible Chat Completions | 综合回答、快速搜索、初步总结 |
+| `main_search` | `search` | xAI Responses **或** OpenAI-compatible Chat Completions（用户二选一；两者都配置时由 `SMART_SEARCH_MAIN_SEARCH_ROUTE` 决定优先级） | 综合回答、快速搜索、初步总结 |
 | `docs_search` | `context7-library`、`context7-docs`、`exa-search` | Context7、Exa | 官方文档、SDK、API、框架/库文档 |
 | `web_search` | `search` 内部中英双语来源发现；`zhipu-search` 仅作 deprecated 手动兼容 | Tavily、Firecrawl；智谱 Web Search API 仅在显式请求时使用 | 每个常规研究问题都做中文和英文网页来源发现 |
 | `web_fetch` | `fetch` | Tavily、Jina Reader、Firecrawl | 已知 URL 正文抓取、证据提取 |
@@ -97,7 +97,7 @@ smart-search research "深度搜索一下最近的比特币行情" --budget deep
 
 | 能力 | 兜底链 |
 | --- | --- |
-| `main_search` | OpenAI-compatible |
+| `main_search` | 由 `SMART_SEARCH_MAIN_SEARCH_ROUTE` 排序；默认 `xAI Responses -> OpenAI-compatible` |
 | `docs_search` | Context7 处理库/API/文档意图；Exa 处理官方域名、论文、产品页、可信站点发现 |
 | `web_search` | Tavily -> Firecrawl；智谱仅在显式选择 deprecated legacy 命令时使用 |
 | `web_fetch` | Tavily -> 带 `JINA_API_KEY` 的 Jina Reader -> Firecrawl |
@@ -202,6 +202,7 @@ smart-search research "https://example.com/source" --format json
 
 | Provider / 路线 | 用途 | 主要配置项 | 官方文档 | Key / 控制台 |
 | --- | --- | --- | --- | --- |
+| xAI Responses (Grok) | 主搜索，自带 server-side `web_search` / `x_search` 工具 | `XAI_API_KEY`、`XAI_API_URL`、`XAI_MODEL`、`XAI_TOOLS` | [xAI docs](https://docs.x.ai/) | [xAI console](https://console.x.ai/) |
 | OpenAI-compatible Chat Completions | 主搜索，适合 OpenAI 官方或兼容中转 | `OPENAI_COMPATIBLE_API_URL`、`OPENAI_COMPATIBLE_API_KEY`、`OPENAI_COMPATIBLE_MODEL`、`OPENAI_COMPATIBLE_STREAM` | [OpenAI platform docs](https://platform.openai.com/docs) | [OpenAI API keys](https://platform.openai.com/api-keys) 或你的兼容服务商 |
 | Exa | 官方文档、API、论文、产品页、可信网页的低噪声发现 | `EXA_API_KEY` | [Exa docs](https://docs.exa.ai/) | [Exa API keys](https://dashboard.exa.ai/api-keys) |
 | Context7 | SDK、库、框架、API 文档兜底 | `CONTEXT7_API_KEY`、`CONTEXT7_BASE_URL` | [Context7 docs](https://context7.com/docs) | [Context7](https://context7.com/) |
@@ -212,6 +213,7 @@ smart-search research "https://example.com/source" --format json
 
 几个容易混淆的点：
 
+- `main_search` 是 xAI Responses 与 OpenAI-compatible Chat Completions 的二选一——有一种就行。两者都配置时，`SMART_SEARCH_MAIN_SEARCH_ROUTE`（`xai-responses,openai-compatible` 的有序 CSV）决定优先级；单项路由则关闭跨路由兜底。引导式 `setup` 在双配时会强制显式选择优先级。xAI server 工具（`web_search`、`x_search`）只会发往 xAI Responses 路由；OpenAI-compatible 路由永不携带 xAI 私有参数。
 - OpenAI-compatible 兼容中转/网关走 Chat Completions `/chat/completions`，只通过 `OPENAI_COMPATIBLE_*` 配置。
 - `OPENAI_COMPATIBLE_STREAM=true` 或 `smart-search search --stream` 只会给 OpenAI-compatible 的 `search` 和 provider 侧 `fetch` 设置 `stream=true`。它是中转长请求兼容开关，不改变 URL 描述和来源排序行为。
 - 旧的 `SMART_SEARCH_API_URL`、`SMART_SEARCH_API_KEY`、`SMART_SEARCH_API_MODE`、`SMART_SEARCH_MODEL` 不再是受支持配置项。请显式使用 `OPENAI_COMPATIBLE_*`。
@@ -226,6 +228,8 @@ smart-search research "https://example.com/source" --format json
 
 ```powershell
 smart-search setup --non-interactive `
+  --xai-api-key "your-xai-key" `
+  --main-search-route "xai-responses,openai-compatible" `
   --openai-compatible-api-url "https://api.openai.com/v1" `
   --openai-compatible-api-key "your-openai-or-relay-key" `
   --openai-compatible-model "gpt-4.1" `
@@ -246,7 +250,7 @@ smart-search setup --non-interactive `
 
 默认最低配置是 `SMART_SEARCH_MINIMUM_PROFILE=standard`，至少需要：
 
-- `main_search`：OpenAI-compatible；
+- `main_search`：xAI Responses（`XAI_API_KEY`）或 OpenAI-compatible；
 - `docs_search`：Exa 或 Context7 二选一；
 - `web_fetch`：Tavily、带 `JINA_API_KEY` 的 Jina、Firecrawl 三选一。
 
@@ -265,10 +269,15 @@ smart-search setup --non-interactive `
 
 | 变量 | 用途 |
 | --- | --- |
+| `XAI_API_URL` | xAI Responses API base URL，默认 `https://api.x.ai/v1` |
+| `XAI_API_KEY` | xAI key；配置即启用 xai-responses 主搜索路由 |
+| `XAI_MODEL` | xAI 模型名，默认 `grok-4-fast` |
+| `XAI_TOOLS` | xAI server-side 工具，默认 `web_search,x_search` |
 | `OPENAI_COMPATIBLE_API_URL` | OpenAI-compatible `/v1` base URL |
 | `OPENAI_COMPATIBLE_API_KEY` | OpenAI-compatible key |
 | `OPENAI_COMPATIBLE_MODEL` | 兼容模型名，默认 `grok-4.20-multi-agent-xhigh` |
 | `OPENAI_COMPATIBLE_STREAM` | OpenAI-compatible 中转兼容开关，接受 `true/1/yes`，默认 `true` |
+| `SMART_SEARCH_MAIN_SEARCH_ROUTE` | 主搜索路由 CSV（`xai-responses,openai-compatible` 的有序子集）；单项关闭跨路由兜底；缺省按默认链顺序 |
 | `EXA_API_KEY` | Exa key |
 | `CONTEXT7_API_KEY` | Context7 key |
 | `ZHIPU_API_KEY` | 智谱 Web Search key |
@@ -305,7 +314,7 @@ smart-search setup --non-interactive `
 | `context7-library` | `c7`、`ctx7` | 查 Context7 库候选 |
 | `context7-docs` | `c7d`、`c7docs`、`ctx7-docs` | 抓 Context7 文档 |
 | `doctor` | `d` | 配置和连通性检查 |
-| `diagnose` | `diag` | OpenAI-compatible 专项排障报告 |
+| `diagnose` | `diag` | OpenAI-compatible 或 xAI 专项排障报告 |
 | `setup` | `init` | 配置向导 |
 | `config` | `cfg` | 本机配置读写 |
 
@@ -325,6 +334,7 @@ smart-search fetch "https://example.com/source" --format markdown --output page.
 smart-search map "https://docs.example.com" --instructions "Find API reference pages" --max-depth 1 --limit 50 --format json
 smart-search doctor --format markdown
 smart-search diagnose openai-compatible --format markdown
+smart-search diagnose xai --format markdown
 ```
 
 ## 输出和证据策略
