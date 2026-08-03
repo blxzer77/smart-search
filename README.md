@@ -255,13 +255,28 @@ Local config and evidence paths:
 - `SMART_SEARCH_EVIDENCE_DIR` overrides the evidence root. Relative values resolve under the active config directory; absolute values are used as-is.
 - `SMART_SEARCH_MAIN_SEARCH_ROUTE` orders the `main_search` route when both xAI Responses and OpenAI-compatible are configured (ordered CSV, e.g. `xai-responses,openai-compatible`); a single entry disables cross-route fallback. When unset, configured providers resolve in default chain order (`xai-responses` first).
 - `SMART_SEARCH_RESEARCH_PREFERRED_PROVIDERS` and `SMART_SEARCH_RESEARCH_DISABLED_PROVIDERS` are advanced `research` routing overrides. They accept provider CSV values and can only reorder or disable providers inside existing capability boundaries.
-- `SMART_SEARCH_CACHE` controls the in-process provider TTL cache for `research` (`on` by default; set `off` to disable). Cache tiers: `web_fetch` 7d, `docs_search` 1h, `web_search` 10min; time-sensitive queries skip `web_search`/`docs_search` caching; `main_search` is never cached. Cache keys include a **model/endpoint identity** (`XAI_MODEL`, OpenAI-compatible model/URL, and related provider presence) so changing models does not reuse stale entries.
-- Earlier Windows source builds defaulted to `~\.config\smart-search\config.json`, while some installs were already pinned to `%LOCALAPPDATA%\smart-search` through `SMART_SEARCH_CONFIG_DIR`. If the new Windows default file is missing but the old home config exists, Smart Search reads the old file as `legacy_windows_home` so upgrades do not lose configuration. `config path` and `doctor` report the active/default/legacy config paths, `SMART_SEARCH_CONFIG_DIR`, `SMART_SEARCH_EVIDENCE_DIR`, and the resolved evidence root.
+- `SMART_SEARCH_CACHE` controls the in-process provider TTL cache for `research` (`on` by default; set `off` to disable). Cache tiers: `web_fetch` 7d, `docs_search` 1h, `web_search` 10min; time-sensitive queries skip `web_search`/`docs_search` caching; `main_search` is never cached. Cache keys include a **model/endpoint identity** (`XAI_MODEL`, OpenAI-compatible model/URL, and related provider presence) so changing models does not reuse stale entries. `SMART_SEARCH_CACHE_MAX_ENTRIES` caps the in-process entry count (default `256`, LRU eviction when exceeded).
+- Earlier Windows source builds defaulted to `~\.config\smart-search\config.json`, while some installs were already pinned to `%LOCALAPPDATA%\smart-search` through `SMART_SEARCH_CONFIG_DIR`. If the new Windows default file is missing but the old home config exists, Smart Search reads the old file as `legacy_windows_home` so upgrades do not lose configuration. When **both** files exist, `doctor` / `config path` emit a dual-config warning so you do not edit the inactive file. `config path` and `doctor` also report unrecognized / leftover keys (for example stale `ZHIPU_*`) under `unrecognized_config_keys` and `config_warnings`.
 
 Provider timeouts:
 
 - `TAVILY_TIMEOUT_SECONDS` controls the Tavily `doctor` connectivity check timeout and defaults to `60`.
 - Raise it for slower Tavily Hikari / pooled / community endpoints before treating the provider as unhealthy.
+
+### Provider retry matrix
+
+HTTP/provider retries use shared `SMART_SEARCH_RETRY_*` settings unless noted. Defaults: `SMART_SEARCH_RETRY_MAX_ATTEMPTS=3`, `SMART_SEARCH_RETRY_MULTIPLIER=1`, `SMART_SEARCH_RETRY_MAX_WAIT=60`.
+
+| Surface | Retry mechanism | Honors `SMART_SEARCH_RETRY_*` | Notes |
+| --- | --- | --- | --- |
+| xAI Responses (`main_search`) | tenacity + Retry-After aware wait | yes | Attempt count is `max_attempts + 1` stops |
+| OpenAI-compatible (`main_search`) | tenacity + Retry-After aware wait | yes | Same for stream and non-stream paths |
+| Exa | tenacity `wait_random_exponential` | yes | Search / similar |
+| Context7 | tenacity `wait_random_exponential` | yes | Library + docs |
+| Jina Reader | tenacity + Retry-After aware wait | yes | Fetch path |
+| Firecrawl fetch/scrape | manual attempt loop | yes (`MAX_ATTEMPTS`) | Empty markdown retries |
+| Tavily search/extract | no tenacity wrapper | timeout only | Doctor connectivity uses `TAVILY_TIMEOUT_SECONDS` |
+| CLI `search --timeout` | agent/CLI hard timeout | no | Treat CLI `network_error` timeouts as workflow-level retries; see SKILL timeout policy |
 
 ## Commands
 

@@ -259,7 +259,22 @@ smart-search setup --non-interactive `
 - `SMART_SEARCH_CONFIG_DIR` 是高级覆盖项，适合 CI、容器、沙箱或便携安装。
 - `research` 证据默认保存到当前配置目录下的 `evidence`，例如 Windows 上的 `%LOCALAPPDATA%\smart-search\evidence`。
 - `SMART_SEARCH_EVIDENCE_DIR` 可覆盖证据根目录；相对路径会解析到当前配置目录下，绝对路径按原样使用。
-- 更早的 Windows 源码默认路径曾是 `~\.config\smart-search\config.json`，但有些安装会通过 `SMART_SEARCH_CONFIG_DIR` 提前固定到 `%LOCALAPPDATA%\smart-search`。如果新版默认位置还没有配置，但旧 home 路径存在配置，Smart Search 会以 `legacy_windows_home` 方式继续读取旧配置，避免升级后配置丢失；`config path` 和 `doctor` 会同时报告当前生效路径、默认路径、旧 home 路径、`SMART_SEARCH_CONFIG_DIR`、`SMART_SEARCH_EVIDENCE_DIR` 和最终解析出的证据根目录。
+- 更早的 Windows 源码默认路径曾是 `~\.config\smart-search\config.json`，但有些安装会通过 `SMART_SEARCH_CONFIG_DIR` 提前固定到 `%LOCALAPPDATA%\smart-search`。如果新版默认位置还没有配置，但旧 home 路径存在配置，Smart Search 会以 `legacy_windows_home` 方式继续读取旧配置，避免升级后配置丢失。当**两份配置同时存在**时，`doctor` / `config path` 会给出 dual-config 警告，避免改到未生效的那份。`config path` 和 `doctor` 还会通过 `unrecognized_config_keys` / `config_warnings` 报告未识别或残留键（例如旧的 `ZHIPU_*`）。
+
+### Provider 重试矩阵
+
+HTTP/provider 重试默认读取 `SMART_SEARCH_RETRY_*`（除非另有说明）。默认值：`SMART_SEARCH_RETRY_MAX_ATTEMPTS=3`、`SMART_SEARCH_RETRY_MULTIPLIER=1`、`SMART_SEARCH_RETRY_MAX_WAIT=60`。
+
+| 表面 | 重试机制 | 是否遵守 `SMART_SEARCH_RETRY_*` | 说明 |
+| --- | --- | --- | --- |
+| xAI Responses（`main_search`） | tenacity + Retry-After 感知等待 | 是 | stop 为 `max_attempts + 1` |
+| OpenAI-compatible（`main_search`） | tenacity + Retry-After 感知等待 | 是 | stream / 非 stream 共用 |
+| Exa | tenacity `wait_random_exponential` | 是 | search / similar |
+| Context7 | tenacity `wait_random_exponential` | 是 | library + docs |
+| Jina Reader | tenacity + Retry-After 感知等待 | 是 | fetch 路径 |
+| Firecrawl fetch/scrape | 手动循环 | 是（`MAX_ATTEMPTS`） | 空 markdown 会重试 |
+| Tavily search/extract | 无 tenacity 包装 | 仅超时 | doctor 连通性用 `TAVILY_TIMEOUT_SECONDS` |
+| CLI `search --timeout` | agent/CLI 硬超时 | 否 | CLI `network_error` 超时按工作流层重试；见 SKILL timeout 策略 |
 
 常用环境变量：
 
@@ -289,7 +304,11 @@ smart-search setup --non-interactive `
 | `SMART_SEARCH_FALLBACK_MODE` | `auto` 或 `off` |
 | `SMART_SEARCH_RESEARCH_PREFERRED_PROVIDERS` | `research` 路由优先 provider CSV，只能在同 capability 内调整顺序 |
 | `SMART_SEARCH_RESEARCH_DISABLED_PROVIDERS` | `research` 禁用 provider CSV，不能改变 provider capability 边界 |
-| `SMART_SEARCH_CACHE` | `research` 进程内 provider TTL 缓存（默认 `on`；设 `off` 关闭）。分级：`web_fetch` 7 天、`docs_search` 1 小时、`web_search` 10 分钟；时效性 query 跳过 `web_search`/`docs_search` 缓存；`main_search` 永不缓存。缓存键含 **模型/端点身份**（`XAI_MODEL`、OpenAI-compatible model/URL 等），换模型不会误命中旧条目 |
+| `SMART_SEARCH_CACHE` | `research` 进程内 provider TTL 缓存（默认 `on`；设 `off` 关闭）。分级：`web_fetch` 7 天、`docs_search` 1 小时、`web_search` 10 分钟；时效性 query 跳过 `web_search`/`docs_search` 缓存；`main_search` 永不缓存。缓存键含 **模型/端点身份**（`XAI_MODEL`、OpenAI-compatible model/URL 等），换模型不会误命中旧条目。`SMART_SEARCH_CACHE_MAX_ENTRIES` 限制进程内条目数（默认 `256`，超限 LRU 驱逐） |
+| `SMART_SEARCH_CACHE_MAX_ENTRIES` | 进程内 TTL 缓存最大条目数，默认 `256` |
+| `SMART_SEARCH_RETRY_MAX_ATTEMPTS` | provider 重试次数上限，默认 `3` |
+| `SMART_SEARCH_RETRY_MULTIPLIER` | tenacity / 指数退避乘数，默认 `1` |
+| `SMART_SEARCH_RETRY_MAX_WAIT` | 单次等待上限（秒），默认 `60` |
 | `SMART_SEARCH_CONFIG_DIR` | 指定本机配置和日志根目录 |
 | `SMART_SEARCH_EVIDENCE_DIR` | 指定 `research` 默认证据根目录 |
 

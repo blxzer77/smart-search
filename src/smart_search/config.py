@@ -62,6 +62,8 @@ class Config:
         "SMART_SEARCH_LOG_TO_FILE",
         "SSL_VERIFY",
     }
+    # old_key -> current_key aliases still accepted from config.json.
+    # Removed keys (e.g. ZHIPU_*) are not mapped; doctor reports them as unrecognized.
     _LEGACY_CONFIG_KEYS: dict[str, str] = {}
 
     def __new__(cls):
@@ -254,6 +256,46 @@ class Config:
         }:
             self._cached_model = None
 
+    def dual_windows_config_exists(self) -> bool:
+        """True when both Windows default and legacy home config.json files exist."""
+        if not sys.platform.startswith("win"):
+            return False
+        default_file = self._default_config_dir() / "config.json"
+        legacy_file = self._legacy_windows_config_dir() / "config.json"
+        if self._same_config_dir(default_file.parent, legacy_file.parent):
+            return False
+        return default_file.exists() and legacy_file.exists()
+
+    def get_unrecognized_config_keys(self) -> list[str]:
+        data = self._load_config_file()
+        known = set(self._CONFIG_KEYS) | set(self._LEGACY_CONFIG_KEYS.keys())
+        return sorted(str(key) for key in data if key not in known)
+
+    def get_legacy_config_keys_in_use(self) -> list[str]:
+        data = self._load_config_file()
+        return sorted(old for old in self._LEGACY_CONFIG_KEYS if old in data)
+
+    def config_warnings(self) -> list[str]:
+        warnings: list[str] = []
+        if self.dual_windows_config_exists():
+            warnings.append(
+                "Both the Windows default config and the legacy ~/.config/smart-search "
+                "config.json exist. Edits to the inactive file are ignored; prefer one location "
+                "or set SMART_SEARCH_CONFIG_DIR explicitly."
+            )
+        unrecognized = self.get_unrecognized_config_keys()
+        if unrecognized:
+            warnings.append(
+                "Unrecognized config keys (ignored): " + ", ".join(unrecognized)
+            )
+        legacy_in_use = self.get_legacy_config_keys_in_use()
+        if legacy_in_use:
+            mapped = ", ".join(
+                f"{old}->{self._LEGACY_CONFIG_KEYS[old]}" for old in legacy_in_use
+            )
+            warnings.append(f"Legacy config keys still in use (aliased): {mapped}")
+        return warnings
+
     def config_path_info(self) -> dict:
         return {
             "ok": True,
@@ -263,6 +305,10 @@ class Config:
             "default_config_file": str(self._default_config_dir() / "config.json"),
             "legacy_windows_config_file": str(self._legacy_windows_config_dir() / "config.json") if sys.platform.startswith("win") else "",
             "legacy_windows_config_exists": (self._legacy_windows_config_dir() / "config.json").exists() if sys.platform.startswith("win") else False,
+            "dual_config_warning": self.dual_windows_config_exists(),
+            "unrecognized_config_keys": self.get_unrecognized_config_keys(),
+            "legacy_config_keys_in_use": self.get_legacy_config_keys_in_use(),
+            "config_warnings": self.config_warnings(),
             "config_dir_override_value": self._config_dir_override_value(),
             "config_dir_override_matches_default": self._config_dir_override_matches_default(),
             "evidence_dir_config_value": self.evidence_dir_config_value,
@@ -610,6 +656,10 @@ class Config:
             "default_config_file": str(self._default_config_dir() / "config.json"),
             "legacy_windows_config_file": str(self._legacy_windows_config_dir() / "config.json") if sys.platform.startswith("win") else "",
             "legacy_windows_config_exists": (self._legacy_windows_config_dir() / "config.json").exists() if sys.platform.startswith("win") else False,
+            "dual_config_warning": self.dual_windows_config_exists(),
+            "unrecognized_config_keys": self.get_unrecognized_config_keys(),
+            "legacy_config_keys_in_use": self.get_legacy_config_keys_in_use(),
+            "config_warnings": self.config_warnings(),
             "config_dir_override_value": self._config_dir_override_value(),
             "config_dir_override_matches_default": self._config_dir_override_matches_default(),
             "log_dir_config_value": self.log_dir_config_value,
