@@ -401,6 +401,8 @@ smart-search config list --format json
 smart-search doctor --format markdown
 ```
 
+失败 JSON 现提供稳定三元组：`error_type`、`error_code`、默认英文 `error`（供 Agent/JSON consumer；交互式 setup 仍可中英提示）。退出码仍只按 `error_type` 映射（`2` 参数 / `3` 配置 / `4` 网络或证据 / `5` 其他）。详见 skill 中 `Error contract (U1/U2)`。
+
 如果搜索慢：
 
 - 降低 `--extra-sources`；

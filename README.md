@@ -367,6 +367,8 @@ smart-search config list --format json
 smart-search doctor --format markdown
 ```
 
+Failed command JSON includes `error_type`, stable `error_code`, and an English `error` message for Agent consumers. Exit codes still follow `error_type` (`2` parameter, `3` config, `4` network/evidence, `5` other). See the bundled skill `Error contract (U1/U2)` section for the full enum.
+
 If OpenAI-compatible `search` hangs or times out after `doctor` passes:
 
 ```powershell

@@ -1118,7 +1118,7 @@ async def test_diagnose_openai_compatible_reports_missing_config(monkeypatch, tm
     assert result["error_type"] == "config_error"
     assert "OPENAI_COMPATIBLE_API_URL" in result["missing"]
     assert "OPENAI_COMPATIBLE_API_KEY" in result["missing"]
-    assert result["summary"] == "OpenAI-compatible 配置不完整。"
+    assert result["summary"] == "OpenAI-compatible configuration is incomplete."
 
 
 @pytest.mark.asyncio
@@ -1131,9 +1131,9 @@ async def test_diagnose_openai_compatible_timeout_after_quick_chat(monkeypatch):
 
     async def fake_probe(api_url, api_key, model, *, stream, timeout_seconds):
         return {
-            "name": f"真实 search 请求 (stream={'true' if stream else 'false'})",
+            "name": f"real search-shape request (stream={'true' if stream else 'false'})",
             "status": "timeout",
-            "message": "请求超时",
+            "message": "Request timed out",
             "response_time_ms": timeout_seconds * 1000,
             "has_content": False,
             "stream": stream,
@@ -1147,10 +1147,11 @@ async def test_diagnose_openai_compatible_timeout_after_quick_chat(monkeypatch):
 
     assert result["ok"] is False
     assert result["error_type"] == "network_error"
-    assert "真实 search 形态超时" in result["summary"]
-    assert "上游模型或中转站" in result["recommendation"]
+    assert "search-shape requests timed out" in result["summary"]
+    assert "Upstream model/relay" in result["recommendation"]
     assert "relay-test-secret" not in dumped
     assert service.config._mask_api_key("relay-test-secret") in dumped
+    assert result.get("error_code") == "NETWORK_ERROR"
 
 
 @pytest.mark.asyncio
@@ -1177,7 +1178,7 @@ async def test_diagnose_openai_compatible_recommends_stream_when_only_stream_wor
     result = await service.diagnose_openai_compatible()
 
     assert result["ok"] is False
-    assert "流式请求可用" in result["summary"]
+    assert "Non-stream requests are unstable" in result["summary"]
     assert "OPENAI_COMPATIBLE_STREAM=true" in result["recommendation"]
 
 
@@ -1205,7 +1206,7 @@ async def test_diagnose_openai_compatible_recommends_no_stream_when_stream_fails
     result = await service.diagnose_openai_compatible()
 
     assert result["ok"] is False
-    assert "非流式请求可用" in result["summary"]
+    assert "Stream requests are unstable" in result["summary"]
     assert "OPENAI_COMPATIBLE_STREAM=false" in result["recommendation"]
 
 
@@ -1227,7 +1228,7 @@ async def test_diagnose_openai_compatible_reports_ok_when_both_search_shapes_wor
 
     assert result["ok"] is True
     assert result["error_type"] == ""
-    assert "主链路正常" in result["summary"]
+    assert "primary path is healthy" in result["summary"]
 
 
 @pytest.mark.asyncio
@@ -1318,7 +1319,7 @@ async def test_primary_connection_keeps_chat_ok_when_models_probe_errors(monkeyp
     assert result["status"] == "ok"
     assert result["chat_completion_test"]["status"] == "ok"
     assert result["models_endpoint_test"]["status"] == "warning"
-    assert "模型列表接口请求失败" in result["models_endpoint_test"]["message"]
+    assert "Models list request failed" in result["models_endpoint_test"]["message"]
     assert calls[0] == ("post", "https://api.example.com/v1/chat/completions", "grok-4.3")
     assert calls[1] == ("get", "https://api.example.com/v1/models")
 

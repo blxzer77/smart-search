@@ -11,13 +11,17 @@ from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
 from . import service
-
-
-EXIT_OK = 0
-EXIT_PARAMETER_ERROR = 2
-EXIT_CONFIG_ERROR = 3
-EXIT_NETWORK_ERROR = 4
-EXIT_RUNTIME_ERROR = 5
+from .errors import (
+    EXIT_CONFIG_ERROR,
+    EXIT_NETWORK_ERROR,
+    EXIT_OK,
+    EXIT_PARAMETER_ERROR,
+    EXIT_RUNTIME_ERROR,
+    ErrorType,
+    attach_error_fields,
+    error_fields,
+    exit_code_from_result,
+)
 
 COMMAND_ALIASES = {
     "search": ["s"],
@@ -122,8 +126,7 @@ def _search_timeout_result(query: str, timeout: float, search_kwargs: dict[str, 
     model = search_kwargs.get("model") or service.config.openai_compatible_model
     return {
         "ok": False,
-        "error_type": "network_error",
-        "error": f"Search timed out after {seconds} seconds",
+        **error_fields(ErrorType.NETWORK, error=f"Search timed out after {seconds} seconds", error_code="SEARCH_TIMEOUT"),
         "query": query,
         "content": "",
         "sources": [],
@@ -151,8 +154,7 @@ def _research_timeout_result(query: str, timeout: float) -> dict[str, Any]:
     seconds = _format_seconds(timeout)
     return {
         "ok": False,
-        "error_type": "network_error",
-        "error": f"Research timed out after {seconds} seconds",
+        **error_fields(ErrorType.NETWORK, error=f"Research timed out after {seconds} seconds", error_code="RESEARCH_TIMEOUT"),
         "question": query,
         "query": query,
         "final_answer": "",
@@ -859,21 +861,11 @@ def _write_panel(text: str, lang: str) -> None:
 
 
 def _exit_code(data: dict[str, Any]) -> int:
-    if data.get("ok", False):
-        return EXIT_OK
-    error_type = data.get("error_type")
-    if error_type == "config_error":
-        return EXIT_CONFIG_ERROR
-    if error_type == "parameter_error":
-        return EXIT_PARAMETER_ERROR
-    if error_type == "network_error":
-        return EXIT_NETWORK_ERROR
-    if error_type == "evidence_error":
-        return EXIT_NETWORK_ERROR
-    return EXIT_RUNTIME_ERROR
+    return exit_code_from_result(data)
 
 
 def _print_result(command: str, data: dict[str, Any], fmt: str, output: str = "") -> int:
+    attach_error_fields(data)
     rendered = _render(command, data, fmt)
     if output:
         service.write_output(output, rendered)
@@ -1706,7 +1698,10 @@ async def _run_async(args: argparse.Namespace) -> int:
             return _print_result("diagnose", data, args.format, args.output)
         return _print_result(
             "diagnose",
-            {"ok": False, "error_type": "parameter_error", "error": f"Unknown diagnose target: {args.diagnose_target}"},
+            {
+                "ok": False,
+                **error_fields(ErrorType.PARAMETER, error=f"Unknown diagnose target: {args.diagnose_target}"),
+            },
             args.format,
             args.output,
         )
@@ -1723,7 +1718,7 @@ def _run_config(args: argparse.Namespace) -> int:
     elif args.config_command == "unset":
         data = service.config_unset(args.key)
     else:
-        data = {"ok": False, "error_type": "parameter_error", "error": "Unknown config command"}
+        data = {"ok": False, **error_fields(ErrorType.PARAMETER, error="Unknown config command")}
     return _print_result("config", data, args.format, args.output)
 
 
