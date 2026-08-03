@@ -1,14 +1,52 @@
+"""HTTP fetch / extract / map helpers for web content providers.
+
+Monkeypatch points (tests typically patch ``smart_search.service``):
+- ``service.call_tavily_extract`` / ``call_firecrawl_scrape`` / ``jina_fetch``
+- ``service.call_tavily_search`` / ``call_firecrawl_search`` / ``call_tavily_map``
+- ``service._run_web_fetch_fallback`` (facade used by research_runtime)
+- ``service.httpx.AsyncClient`` (shared ``httpx`` module attribute)
+
+Implementations live here; ``service`` re-exports thin shims so patches on
+``service.<name>`` remain effective when callers go through ``_service()``.
+"""
+
+from __future__ import annotations
+
+import json
 import time
 from typing import Any
 
 import httpx
 
 from .config import config
+from .errors import (
+    ErrorType,
+    MAP_ERROR,
+    MAP_HTTP_ERROR,
+    MAP_TIMEOUT,
+    MISSING_API_KEY,
+    PARSE_FAILED,
+    error_fields,
+    missing_api_key_message,
+)
 from .logger import log_info
+
+
 def _service():
     from . import service as svc
 
     return svc
+
+
+def decode_provider_json(raw: str, provider: str = "jina") -> dict[str, Any]:
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return {
+            "ok": False,
+            "provider": provider,
+            **error_fields(ErrorType.PARSE, error=raw, error_code=PARSE_FAILED),
+        }
 
 
 async def run_web_fetch_fallback(
@@ -92,6 +130,71 @@ async def run_web_fetch_fallback(
     return None, attempts
 
 
+async def call_tavily_search(query: str, max_results: int = 6) -> list[dict] | None:
+    api_key = config.tavily_api_key
+    if not api_key:
+        return None
+    endpoint = f"{config.tavily_api_url.rstrip('/')}/search"
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    body = {
+        "query": query,
+        "max_results": max_results,
+        "search_depth": "advanced",
+        "include_raw_content": False,
+        "include_answer": False,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=config.tavily_timeout) as client:
+            response = await client.post(endpoint, headers=headers, json=body)
+            response.raise_for_status()
+            data = response.json()
+            results = data.get("results", [])
+            return (
+                [
+                    {
+                        "title": r.get("title", ""),
+                        "url": r.get("url", ""),
+                        "content": r.get("content", ""),
+                        "score": r.get("score", 0),
+                    }
+                    for r in results
+                ]
+                if results
+                else None
+            )
+    except Exception:
+        return None
+
+
+async def call_firecrawl_search(query: str, limit: int = 14) -> list[dict] | None:
+    api_key = config.firecrawl_api_key
+    if not api_key:
+        return None
+    endpoint = f"{config.firecrawl_api_url.rstrip('/')}/search"
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    body = {"query": query, "limit": limit}
+    try:
+        async with httpx.AsyncClient(timeout=90.0) as client:
+            response = await client.post(endpoint, headers=headers, json=body)
+            response.raise_for_status()
+            data = response.json()
+            results = data.get("data", {}).get("web", [])
+            return (
+                [
+                    {
+                        "title": r.get("title", ""),
+                        "url": r.get("url", ""),
+                        "description": r.get("description", ""),
+                    }
+                    for r in results
+                ]
+                if results
+                else None
+            )
+    except Exception:
+        return None
+
+
 async def call_tavily_extract(url: str) -> str | None:
     api_key = config.tavily_api_key
     if not api_key:
@@ -145,6 +248,7 @@ async def call_firecrawl_scrape(url: str, ctx=None) -> str | None:
 
 
 async def call_jina_reader(url: str) -> dict[str, Any]:
+    # Resolve provider via service so tests can monkeypatch service.JinaReaderProvider.
     raw = await _service().JinaReaderProvider(
         config.jina_reader_api_url,
         config.jina_api_key,
@@ -156,3 +260,59 @@ async def call_jina_reader(url: str) -> dict[str, Any]:
 
 async def jina_fetch(url: str) -> dict[str, Any]:
     return await call_jina_reader(url)
+
+
+async def call_tavily_map(
+    url: str,
+    instructions: str = "",
+    max_depth: int = 1,
+    max_breadth: int = 20,
+    limit: int = 50,
+    timeout: int = 150,
+) -> dict[str, Any]:
+    api_key = config.tavily_api_key
+    if not api_key:
+        return {
+            "ok": False,
+            **error_fields(ErrorType.CONFIG, error=missing_api_key_message("TAVILY_API_KEY"), error_code=MISSING_API_KEY),
+        }
+
+    endpoint = f"{config.tavily_api_url.rstrip('/')}/map"
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    body = {"url": url, "max_depth": max_depth, "max_breadth": max_breadth, "limit": limit, "timeout": timeout}
+    if instructions:
+        body["instructions"] = instructions
+    try:
+        async with httpx.AsyncClient(timeout=float(timeout + 10)) as client:
+            response = await client.post(endpoint, headers=headers, json=body)
+            response.raise_for_status()
+            data = response.json()
+            return {
+                "ok": True,
+                "base_url": data.get("base_url", ""),
+                "results": data.get("results", []),
+                "response_time": data.get("response_time", 0),
+            }
+    except httpx.TimeoutException:
+        return {
+            "ok": False,
+            **error_fields(
+                ErrorType.NETWORK,
+                error=f"Map request timed out after {timeout} seconds",
+                error_code=MAP_TIMEOUT,
+            ),
+        }
+    except httpx.HTTPStatusError as e:
+        return {
+            "ok": False,
+            **error_fields(
+                ErrorType.NETWORK,
+                error=f"Map HTTP error: {e.response.status_code} - {e.response.text[:200]}",
+                error_code=MAP_HTTP_ERROR,
+            ),
+        }
+    except Exception as e:
+        return {
+            "ok": False,
+            **error_fields(ErrorType.NETWORK, error=f"Map request failed: {str(e)}", error_code=MAP_ERROR),
+        }

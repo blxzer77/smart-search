@@ -1,4 +1,19 @@
-"""Runtime helpers for research execution without importing service at module level."""
+"""Runtime helpers for research execution without importing service at module level.
+
+Monkeypatch documentation (Wave3 split):
+- Prefer patching ``smart_search.service`` symbols; research paths resolve
+  fetch/search helpers via ``_service()`` so facade patches win.
+- Web fetch chain: ``service._run_web_fetch_fallback`` →
+  ``research_fetch.run_web_fetch_fallback`` →
+  ``service.call_tavily_extract`` / ``service.jina_fetch`` /
+  ``service.call_firecrawl_scrape``.
+- Web search chain: ``service._run_web_search_fallback`` →
+  ``research_discovery`` → ``service.call_tavily_search`` /
+  ``service.call_firecrawl_search``.
+- Shared HTTP client patches: ``service.httpx.AsyncClient`` (module attribute).
+- Diagnostics: ``service.doctor`` / ``service.diagnose_*`` and probe helpers
+  live in ``diagnostics`` but remain re-exported on ``service``.
+"""
 
 from .research_artifacts import write_research_artifact as _write_research_artifact
 from .research_gap import research_gap_status as _research_gap_status
