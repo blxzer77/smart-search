@@ -2,11 +2,14 @@ import pytest
 
 from smart_search.research_cache import (
     CACHE_TTL_BY_CAPABILITY,
+    DEFAULT_CACHE_MAX_ENTRIES,
     _TTLCache,
     cached_call,
     is_time_sensitive,
     make_key,
+    make_keyed,
     reset_cache_disabled_flag,
+    reset_cache_max_entries_flag,
 )
 from smart_search import research_cache
 
@@ -77,8 +80,6 @@ async def test_cached_call_disabled_via_env(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_make_keyed_changes_when_model_changes(monkeypatch):
-    from smart_search.research_cache import make_keyed
-
     monkeypatch.setattr("smart_search.research_cache.cache_identity", lambda: "id-a")
     key_a = make_keyed("bilingual", "q", 5, "tavily", "auto", "both")
     monkeypatch.setattr("smart_search.research_cache.cache_identity", lambda: "id-b")
@@ -88,8 +89,6 @@ async def test_make_keyed_changes_when_model_changes(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_cached_call_misses_after_model_identity_change(monkeypatch):
-    from smart_search.research_cache import make_keyed
-
     monkeypatch.delenv("SMART_SEARCH_CACHE", raising=False)
     reset_cache_disabled_flag()
     research_cache._REGISTRY = _TTLCache()
@@ -111,3 +110,56 @@ async def test_cached_call_misses_after_model_identity_change(monkeypatch):
     await cached_call("web_search", key2, CACHE_TTL_BY_CAPABILITY["web_search"], fake_search)
     assert len(calls) == 2
     assert key1 != key2
+
+
+def test_ttl_cache_lru_evicts_oldest_when_over_capacity():
+    cache = _TTLCache(max_entries=2)
+    cache.set(("a",), "1", ttl=3600)
+    cache.set(("b",), "2", ttl=3600)
+    assert len(cache) == 2
+    cache.set(("c",), "3", ttl=3600)
+    assert len(cache) == 2
+    assert cache.get(("a",)) is None
+    assert cache.get(("b",)) == "2"
+    assert cache.get(("c",)) == "3"
+
+
+def test_ttl_cache_lru_promotes_on_get():
+    cache = _TTLCache(max_entries=2)
+    cache.set(("a",), "1", ttl=3600)
+    cache.set(("b",), "2", ttl=3600)
+    assert cache.get(("a",)) == "1"
+    cache.set(("c",), "3", ttl=3600)
+    assert cache.get(("b",)) is None
+    assert cache.get(("a",)) == "1"
+    assert cache.get(("c",)) == "3"
+
+
+def test_cache_max_entries_env(monkeypatch):
+    monkeypatch.setenv("SMART_SEARCH_CACHE_MAX_ENTRIES", "3")
+    reset_cache_max_entries_flag()
+    assert research_cache._cache_max_entries() == 3
+    monkeypatch.delenv("SMART_SEARCH_CACHE_MAX_ENTRIES", raising=False)
+    reset_cache_max_entries_flag()
+    assert research_cache._cache_max_entries() == DEFAULT_CACHE_MAX_ENTRIES
+
+
+@pytest.mark.parametrize(
+    "locale_a,locale_b,budget_a,budget_b,should_differ",
+    [
+        ("cn", "en", "standard", "standard", True),
+        ("both", "both", "standard", "deep", True),
+        ("cn", "cn", "standard", "standard", False),
+        ("en", "en", "deep", "deep", False),
+    ],
+)
+def test_make_keyed_locale_budget_collision_matrix(
+    monkeypatch, locale_a, locale_b, budget_a, budget_b, should_differ
+):
+    monkeypatch.setattr("smart_search.research_cache.cache_identity", lambda: "id-fixed")
+    key_a = make_keyed("bilingual", "same-question", 5, "tavily", "auto", locale_a, budget_a)
+    key_b = make_keyed("bilingual", "same-question", 5, "tavily", "auto", locale_b, budget_b)
+    if should_differ:
+        assert key_a != key_b
+    else:
+        assert key_a == key_b

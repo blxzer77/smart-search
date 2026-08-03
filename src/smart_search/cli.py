@@ -375,6 +375,18 @@ def _format_doctor_markdown(data: dict[str, Any]) -> str:
         lines.append(
             "Active config is using the old Windows `~\\.config\\smart-search` location because the new default file does not exist."
         )
+    warnings = data.get("config_warnings") or []
+    if warnings:
+        lines.extend(["", "## Warnings"])
+        for warning in warnings:
+            lines.append(f"- {warning}")
+    elif data.get("dual_config_warning"):
+        lines.append(
+            "Warning: both the Windows default and legacy home config.json files exist; edits to the inactive file are ignored."
+        )
+    unrecognized = data.get("unrecognized_config_keys") or []
+    if unrecognized and not warnings:
+        lines.append(f"Unrecognized config keys (ignored): `{', '.join(str(item) for item in unrecognized)}`")
     missing = data.get("minimum_profile_missing") or []
     if missing:
         lines.append(f"Missing: `{', '.join(str(item) for item in missing)}`")
@@ -1792,6 +1804,18 @@ def build_parser() -> argparse.ArgumentParser:
     parser = SmartSearchArgumentParser(
         prog="smart-search",
         description="Smart Search CLI for AI-agent web research.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Quick start:\n"
+            "  1. smart-search setup\n"
+            "  2. smart-search doctor --format json\n"
+            "  3. smart-search research \"your question\" --format json\n"
+            "\n"
+            "If setup fails or configuration looks wrong, run:\n"
+            "  smart-search doctor --format markdown\n"
+            "On Windows, prefer one config location (%LOCALAPPDATA%\\smart-search or "
+            "~\\.config\\smart-search); doctor warns when both exist."
+        ),
     )
     parser.add_argument("-v", "--v", "--version", action="version", version=f"%(prog)s {_get_version()}")
     sub = parser.add_subparsers(dest="command", required=True, parser_class=SmartSearchArgumentParser)

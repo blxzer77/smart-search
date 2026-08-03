@@ -29,6 +29,9 @@ def test_help_contains_commands(capsys):
     out = capsys.readouterr().out
     assert "search" in out
     assert "doctor" in out
+    assert "Quick start" in out
+    assert "smart-search doctor --format json" in out
+    assert "smart-search doctor --format markdown" in out
 
 
 def test_version_flags_exit_successfully(monkeypatch, capsys):

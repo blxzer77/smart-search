@@ -1,6 +1,7 @@
 import os
 import random
 import time
+from collections import OrderedDict
 from typing import Any, Awaitable, Callable
 
 CACHE_TTL_BY_CAPABILITY = {
@@ -9,7 +10,9 @@ CACHE_TTL_BY_CAPABILITY = {
     "web_search": 600,
 }
 _JITTER = 0.1
+DEFAULT_CACHE_MAX_ENTRIES = 256
 _DISABLED_FLAG: bool | None = None
+_MAX_ENTRIES_FLAG: int | None = None
 
 
 def _cache_disabled() -> bool:
@@ -24,6 +27,24 @@ def reset_cache_disabled_flag() -> None:
     _DISABLED_FLAG = None
 
 
+def _cache_max_entries() -> int:
+    """Max in-process TTL entries (LRU eviction). Env: SMART_SEARCH_CACHE_MAX_ENTRIES."""
+    global _MAX_ENTRIES_FLAG
+    if _MAX_ENTRIES_FLAG is None:
+        raw = (os.getenv("SMART_SEARCH_CACHE_MAX_ENTRIES") or str(DEFAULT_CACHE_MAX_ENTRIES)).strip()
+        try:
+            value = int(raw)
+        except ValueError:
+            value = DEFAULT_CACHE_MAX_ENTRIES
+        _MAX_ENTRIES_FLAG = DEFAULT_CACHE_MAX_ENTRIES if value < 1 else value
+    return _MAX_ENTRIES_FLAG
+
+
+def reset_cache_max_entries_flag() -> None:
+    global _MAX_ENTRIES_FLAG
+    _MAX_ENTRIES_FLAG = None
+
+
 def is_time_sensitive(query: str) -> bool:
     from .research_keywords import DEEP_CURRENT_KEYWORDS, DEEP_RECENT_KEYWORDS
 
@@ -32,8 +53,14 @@ def is_time_sensitive(query: str) -> bool:
 
 
 class _TTLCache:
-    def __init__(self) -> None:
-        self._store: dict[tuple, tuple[float, Any]] = {}
+    def __init__(self, max_entries: int | None = None) -> None:
+        self._store: OrderedDict[tuple, tuple[float, Any]] = OrderedDict()
+        self._max_entries_override = max_entries
+
+    def _limit(self) -> int:
+        if self._max_entries_override is not None:
+            return max(1, self._max_entries_override)
+        return _cache_max_entries()
 
     def get(self, key: tuple) -> Any:
         now = time.time()
@@ -44,14 +71,22 @@ class _TTLCache:
         if now > expiry:
             self._store.pop(key, None)
             return None
+        self._store.move_to_end(key)
         return value
 
     def set(self, key: tuple, value: Any, ttl: int) -> None:
         jitter = random.uniform(-_JITTER, _JITTER) * ttl
         self._store[key] = (time.time() + ttl + jitter, value)
+        self._store.move_to_end(key)
+        limit = self._limit()
+        while len(self._store) > limit:
+            self._store.popitem(last=False)
 
     def clear(self) -> None:
         self._store.clear()
+
+    def __len__(self) -> int:
+        return len(self._store)
 
 
 _REGISTRY = _TTLCache()

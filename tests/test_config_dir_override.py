@@ -93,6 +93,30 @@ def test_windows_prefers_new_default_when_both_new_and_legacy_exist(monkeypatch,
     config = _fresh_config_file(monkeypatch)
     assert config.config_file == new_config
     assert config.config_dir_source == "default"
+    info = config.config_path_info()
+    assert info["dual_config_warning"] is True
+    assert info["legacy_windows_config_exists"] is True
+    assert any("Both the Windows default" in warning for warning in info["config_warnings"])
+
+
+def test_unrecognized_config_keys_are_reported(monkeypatch, tmp_path):
+    config = _fresh_config_file(monkeypatch)
+    monkeypatch.setattr(config, "_config_file", tmp_path / "config.json")
+    monkeypatch.setattr(config, "_config_dir_source", "override")
+    config._save_config_file(
+        {
+            "TAVILY_API_KEY": "tavily",
+            "ZHIPU_API_KEY": "stale",
+            "UNKNOWN_CUSTOM_KEY": "x",
+        }
+    )
+    assert config.get_unrecognized_config_keys() == ["UNKNOWN_CUSTOM_KEY", "ZHIPU_API_KEY"]
+    info = config.get_config_info()
+    assert info["unrecognized_config_keys"] == ["UNKNOWN_CUSTOM_KEY", "ZHIPU_API_KEY"]
+    assert any("Unrecognized config keys" in warning for warning in info["config_warnings"])
+    # Values must not appear as first-class doctor fields (secrets / removed providers).
+    assert "ZHIPU_API_KEY" not in info
+    assert "UNKNOWN_CUSTOM_KEY" not in info
 
 
 def test_no_env_non_windows_falls_back_to_home(monkeypatch, tmp_path):

@@ -55,6 +55,7 @@ async def research(
             "question": question,
             "mode": "deep_research_execution",
             "route_policy_version": RESEARCH_ROUTE_POLICY_VERSION,
+            "output_schema_version": RESEARCH_OUTPUT_SCHEMA_VERSION,
             "elapsed_ms": _elapsed_ms(start),
         }
 
@@ -72,6 +73,7 @@ async def research(
             "question": question,
             "mode": "deep_research_execution",
             "route_policy_version": RESEARCH_ROUTE_POLICY_VERSION,
+            "output_schema_version": RESEARCH_OUTPUT_SCHEMA_VERSION,
             "elapsed_ms": _elapsed_ms(start),
         }
 
@@ -128,6 +130,7 @@ async def research(
             "fallback_used": False,
             "degraded": True,
             "route_policy_version": RESEARCH_ROUTE_POLICY_VERSION,
+            "output_schema_version": RESEARCH_OUTPUT_SCHEMA_VERSION,
             "evidence_dir": evidence_dir,
             "elapsed_ms": _elapsed_ms(start),
         }

@@ -524,6 +524,11 @@ def test_legacy_zhipu_keys_in_config_file_are_ignored(monkeypatch, tmp_path):
     assert "ZHIPU_SEARCH_ENGINE" not in saved
     assert saved["TAVILY_API_KEY"] == "tavily-secret"
     assert "ZHIPU_API_KEY" not in doctor
+    assert doctor["unrecognized_config_keys"] == [
+        "ZHIPU_API_KEY",
+        "ZHIPU_API_URL",
+        "ZHIPU_SEARCH_ENGINE",
+    ]
     assert fake_config_file.exists()
 
 
