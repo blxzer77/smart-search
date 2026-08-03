@@ -43,7 +43,6 @@ RESEARCH_PROVIDER_MENTION_KEYWORDS = {
     "context7",
     "firecrawl",
     "jina",
-    "zhipu",
     "openai-compatible",
     "openai compatible",
 }
@@ -240,16 +239,6 @@ PROVIDER_PROFILES: dict[str, dict[str, Any]] = {
         "minimum_profile_role": "docs_search",
         "quality_filters": ["URL required", "fetch before proof citation"],
         "route_reasons": ["official low-noise discovery", "paper/product discovery"],
-    },
-    "zhipu": {
-        "capability": "web_search",
-        "deprecated": True,
-        "strengths": ["legacy Chinese/current web-search command compatibility"],
-        "exclusions": ["web_fetch", "chat model selection"],
-        "fallback_group": "web_search",
-        "minimum_profile_role": "",
-        "quality_filters": ["URL required", "fetch before proof citation"],
-        "route_reasons": ["deprecated; not used by default routing"],
     },
     "tavily": {
         "capability": "web_search",

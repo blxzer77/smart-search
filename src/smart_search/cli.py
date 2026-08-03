@@ -25,7 +25,6 @@ COMMAND_ALIASES = {
     "map": ["m"],
     "exa-search": ["exa", "x"],
     "exa-similar": ["xs"],
-    "zhipu-search": ["z", "zp"],
     "context7-library": ["c7", "ctx7"],
     "context7-docs": ["c7d", "c7docs", "ctx7-docs"],
     "research": ["rs"],
@@ -51,13 +50,6 @@ class SmartSearchArgumentParser(argparse.ArgumentParser):
 
 TAVILY_DEFAULT_API_URL = "https://api.tavily.com"
 FIRECRAWL_DEFAULT_API_URL = "https://api.firecrawl.dev/v2"
-ZHIPU_DEFAULT_API_URL = "https://open.bigmodel.cn/api"
-ZHIPU_SEARCH_ENGINE_CHOICES = [
-    "search_std",
-    "search_pro",
-    "search_pro_sogou",
-    "search_pro_quark",
-]
 
 _STATIC_SMART_SEARCH_BANNER = r"""
  ____                       _     ____                      _
@@ -413,7 +405,6 @@ def _format_doctor_markdown(data: dict[str, Any]) -> str:
         ("tavily", data.get("tavily_connection_test") or {}),
         ("jina", data.get("jina_connection_test") or {}),
         ("firecrawl", data.get("firecrawl_connection_test") or {}),
-        ("zhipu", data.get("zhipu_connection_test") or {}),
         ("context7", data.get("context7_connection_test") or {}),
     ]
     rows = []
@@ -669,7 +660,6 @@ def _format_markdown(command: str, data: dict[str, Any]) -> str:
         "map": "Site Map",
         "exa-search": "Exa Search",
         "exa-similar": "Exa Similar Pages",
-        "zhipu-search": "Zhipu Search",
         "context7-library": "Context7 Library Search",
     }
     if command in titles:
@@ -763,7 +753,6 @@ def _format_content(command: str, data: dict[str, Any]) -> str:
         "map",
         "exa-search",
         "exa-similar",
-        "zhipu-search",
         "context7-library",
     }:
         lines = _plain_result_lines(data)
@@ -803,16 +792,6 @@ def _write_stdout(text: str) -> None:
 
 def _write_stderr(text: str) -> None:
     sys.stderr.write(_stream_safe(sys.stderr, text))
-
-
-ZHIPU_DEPRECATION_WARNING = (
-    "[DEPRECATED] `zhipu-search` is deprecated and will be removed in the next minor version (0.2.0).\n"
-    "It is no longer used by default research routing. Use `search` (Tavily/Firecrawl) or `research` instead.\n"
-)
-
-
-def _emit_zhipu_deprecation() -> None:
-    _write_stderr(ZHIPU_DEPRECATION_WARNING)
 
 
 def _smart_search_banner_text() -> str:
@@ -894,7 +873,6 @@ def _t(lang: str, zh: str, en: str) -> str:
 def _display_provider(provider: str, lang: str) -> str:
     names = {
         "openai-compatible": "OpenAI-compatible",
-        "zhipu": _t(lang, "智谱", "Zhipu"),
         "exa": "Exa",
         "context7": "Context7",
         "jina": "Jina Reader",
@@ -947,10 +925,6 @@ def _normalize_firecrawl_api_url(url: str) -> str:
     return _normalize_custom_base_url(url)
 
 
-def _normalize_zhipu_api_url(url: str) -> str:
-    return _normalize_custom_base_url(url)
-
-
 def _normalize_jina_reader_api_url(url: str) -> str:
     return _normalize_custom_base_url(url)
 
@@ -988,7 +962,6 @@ def _setup_status_from_values(values: dict[str, str]) -> dict[str, Any]:
                 if configured
             ],
             "fallback_chain": ["tavily", "firecrawl"],
-            "deprecated_configured": ["zhipu"] if has("ZHIPU_API_KEY") else [],
         },
         "docs_search": {
             "configured": [
@@ -1439,85 +1412,6 @@ def _prompt_firecrawl_api_url(values: dict[str, str], current: dict[str, str], l
         values["FIRECRAWL_API_URL"] = normalized
 
 
-def _prompt_zhipu_api_url(values: dict[str, str], current: dict[str, str], lang: str) -> None:
-    current_url = current.get("ZHIPU_API_URL", "")
-    choices = []
-    if current_url:
-        choices.append({"name": _t(lang, "保留当前地址（已配置）", "Keep current URL (configured)"), "value": "current"})
-    choices.extend([
-        {
-            "name": _t(
-                lang,
-                "官方智谱 Web Search API (https://open.bigmodel.cn/api)",
-                "Official Zhipu Web Search API (https://open.bigmodel.cn/api)",
-            ),
-            "value": "official",
-        },
-        {
-            "name": _t(
-                lang,
-                "自定义智谱 API 地址",
-                "Custom Zhipu API URL",
-            ),
-            "value": "custom",
-        },
-    ])
-    default_choice = "current" if current_url else "official"
-    choice = _prompt_select(_t(lang, "选择智谱 API 地址", "Choose Zhipu API URL"), choices, default_choice)
-    if choice == "current":
-        return
-    if choice == "official":
-        values["ZHIPU_API_URL"] = ZHIPU_DEFAULT_API_URL
-        return
-    raw = _prompt_value(
-        "ZHIPU_API_URL",
-        _t(lang, "智谱 API 地址", "Zhipu API URL"),
-        current_url,
-        optional=False,
-        lang=lang,
-    )
-    normalized = _normalize_zhipu_api_url(raw)
-    if normalized:
-        values["ZHIPU_API_URL"] = normalized
-
-
-def _prompt_zhipu_search_engine(values: dict[str, str], current: dict[str, str], lang: str) -> None:
-    current_engine = current.get("ZHIPU_SEARCH_ENGINE", "")
-    choices = []
-    if current_engine:
-        choices.append(
-            {
-                "name": _t(
-                    lang,
-                    f"保留当前搜索服务（{current_engine}）",
-                    f"Keep current search service ({current_engine})",
-                ),
-                "value": "current",
-            }
-        )
-    choices.extend(
-        {"name": engine, "value": engine}
-        for engine in ZHIPU_SEARCH_ENGINE_CHOICES
-    )
-    choices.append({"name": _t(lang, "自定义搜索服务", "Custom search service"), "value": "custom"})
-    default_choice = "current" if current_engine else "search_std"
-    choice = _prompt_select(_t(lang, "选择智谱搜索服务", "Choose Zhipu search service"), choices, default_choice)
-    if choice == "current":
-        return
-    if choice == "custom":
-        raw = _prompt_value(
-            "ZHIPU_SEARCH_ENGINE",
-            _t(lang, "智谱搜索服务", "Zhipu search service"),
-            current_engine,
-            optional=False,
-            lang=lang,
-        )
-        if raw:
-            values["ZHIPU_SEARCH_ENGINE"] = raw.strip()
-        return
-    values["ZHIPU_SEARCH_ENGINE"] = choice
-
-
 def _prompt_web_fetch(values: dict[str, str], current: dict[str, str], lang: str) -> None:
     status = _setup_status_from_values(_merge_setup_values(current, values))
     default_selected = status["web_fetch"]["configured"] or ["tavily"]
@@ -1565,8 +1459,8 @@ def _prompt_optional_enhancements(values: dict[str, str], current: dict[str, str
     _write_stderr(
         _t(
             lang,
-            "\n[可选增强] web_search 网页补强\n用途: 通过 Tavily / Firecrawl 做中英双语来源检索。\n说明: Zhipu 已弃用为默认路径；保留旧命令仅用于手动兼容。\n",
-            "\n[Optional] web_search web reinforcement\nPurpose: bilingual Chinese/English source discovery through Tavily / Firecrawl.\nNote: Zhipu is deprecated from default routing; the legacy command remains for manual compatibility only.\n",
+            "\n[可选增强] web_search 网页补强\n用途: 通过 Tavily / Firecrawl 做中英双语来源检索。\n",
+            "\n[Optional] web_search web reinforcement\nPurpose: bilingual Chinese/English source discovery through Tavily / Firecrawl.\n",
         )
     )
     if _prompt_yes_no(_t(lang, "是否调整验证/兜底默认值?", "Adjust validation/fallback defaults?"), default=False):
@@ -1611,12 +1505,12 @@ def _write_setup_examples(lang: str) -> None:
             "  main_search: 二选一即可——xAI Responses（填 XAI_API_KEY）或 OpenAI-compatible（示例: https://api.openai.com/v1）；都配则需选优先路由。\n"
             "  docs_search: 文档/API 优先 Context7；官方域名、论文和低噪声发现再配 Exa。\n"
             "  web_fetch: Tavily 官方地址是 https://api.tavily.com；号池填 https://<host>/api/tavily。\n"
-            "  key 都填你自己控制台里的；Firecrawl 可之后再补；Zhipu 只在显式 legacy 兼容时手动配置。\n",
+            "  key 都填你自己控制台里的；Firecrawl 可之后再补。\n",
             "\nIf unsure: first configure main_search + docs_search + web_fetch.\n"
             "  main_search: pick ONE — xAI Responses (set XAI_API_KEY) or OpenAI-compatible (example: https://api.openai.com/v1); if both are set you must choose a priority route.\n"
             "  docs_search: Context7 for docs/API first; add Exa for official domains, papers, and low-noise discovery.\n"
             "  web_fetch: official Tavily endpoint is https://api.tavily.com; pooled endpoints use https://<host>/api/tavily.\n"
-            "  Use keys from your own provider consoles. Firecrawl can be added later; configure Zhipu only for explicit legacy compatibility.\n",
+            "  Use keys from your own provider consoles. Firecrawl can be added later.\n",
         )
     )
 
@@ -1671,9 +1565,6 @@ def _run_advanced_setup_prompts(values: dict[str, str], current: dict[str, str],
         ("SMART_SEARCH_MINIMUM_PROFILE", "Minimum profile (standard/off)", True),
         ("EXA_API_KEY", "Exa API key", True),
         ("CONTEXT7_API_KEY", "Context7 API key", True),
-        ("ZHIPU_API_KEY", "Zhipu API key", True),
-        ("ZHIPU_API_URL", "Zhipu Web Search API URL", True),
-        ("ZHIPU_SEARCH_ENGINE", "Zhipu search service (search_std/search_pro/search_pro_sogou/search_pro_quark/custom)", True),
         ("JINA_API_KEY", "Jina API key", True),
         ("JINA_READER_API_URL", "Jina Reader API URL", True),
         ("JINA_RESPOND_WITH", "Jina respond-with mode (optional, e.g. readerlm-v2)", True),
@@ -1691,8 +1582,6 @@ def _run_advanced_setup_prompts(values: dict[str, str], current: dict[str, str],
             value = _normalize_tavily_api_url(value)
         elif key == "FIRECRAWL_API_URL":
             value = _normalize_firecrawl_api_url(value)
-        elif key == "ZHIPU_API_URL":
-            value = _normalize_zhipu_api_url(value)
         elif key == "JINA_READER_API_URL":
             value = _normalize_jina_reader_api_url(value)
         values[key] = value
@@ -1748,17 +1637,6 @@ async def _run_async(args: argparse.Namespace) -> int:
     if args.command == "exa-similar":
         data = await service.exa_find_similar(args.url, num_results=args.num_results)
         return _print_result("exa-similar", data, args.format, args.output)
-    if args.command == "zhipu-search":
-        _emit_zhipu_deprecation()
-        data = await service.zhipu_search(
-            args.query,
-            count=args.count,
-            search_engine=args.search_engine,
-            search_recency_filter=args.search_recency_filter,
-            search_domain_filter=args.search_domain_filter,
-            content_size=args.content_size,
-        )
-        return _print_result("zhipu-search", data, args.format, args.output)
     if args.command == "context7-library":
         data = await service.context7_library(args.name, args.query)
         return _print_result("context7-library", data, args.format, args.output)
@@ -1825,9 +1703,6 @@ def _run_setup(args: argparse.Namespace) -> int:
         "SMART_SEARCH_MINIMUM_PROFILE": args.minimum_profile,
         "EXA_API_KEY": args.exa_key,
         "CONTEXT7_API_KEY": args.context7_key,
-        "ZHIPU_API_KEY": args.zhipu_key,
-        "ZHIPU_API_URL": _normalize_zhipu_api_url(args.zhipu_api_url),
-        "ZHIPU_SEARCH_ENGINE": args.zhipu_search_engine,
         "JINA_API_KEY": args.jina_key,
         "JINA_READER_API_URL": _normalize_jina_reader_api_url(args.jina_reader_api_url),
         "JINA_RESPOND_WITH": args.jina_respond_with,
@@ -1948,25 +1823,6 @@ def build_parser() -> argparse.ArgumentParser:
     similar_parser.add_argument("--num-results", type=int, default=5)
     _add_format_args(similar_parser)
 
-    zhipu_parser = sub.add_parser(
-        "zhipu-search",
-        aliases=COMMAND_ALIASES["zhipu-search"],
-        help="Run Zhipu Web Search source-first search. (DEPRECATED: removed in 0.2.0)",
-        description=(
-            "DEPRECATED: `zhipu-search` is deprecated and will be removed in 0.2.0. "
-            "It is no longer used by default research routing. Use `search` or `research` instead. "
-            "Every invocation emits a [DEPRECATED] warning to stderr."
-        ),
-    )
-    zhipu_parser.set_defaults(command="zhipu-search")
-    zhipu_parser.add_argument("query")
-    zhipu_parser.add_argument("--count", type=int, default=10)
-    zhipu_parser.add_argument("--search-engine", default="")
-    zhipu_parser.add_argument("--search-recency-filter", default="noLimit")
-    zhipu_parser.add_argument("--search-domain-filter", default="")
-    zhipu_parser.add_argument("--content-size", choices=["medium", "high"], default="medium")
-    _add_format_args(zhipu_parser)
-
     context7_library_parser = sub.add_parser(
         "context7-library",
         aliases=COMMAND_ALIASES["context7-library"],
@@ -2053,9 +1909,6 @@ def build_parser() -> argparse.ArgumentParser:
     setup_parser.add_argument("--minimum-profile", default="", help="Save SMART_SEARCH_MINIMUM_PROFILE.")
     setup_parser.add_argument("--exa-key", default="", help="Save EXA_API_KEY.")
     setup_parser.add_argument("--context7-key", default="", help="Save CONTEXT7_API_KEY.")
-    setup_parser.add_argument("--zhipu-key", default="", help="Save ZHIPU_API_KEY.")
-    setup_parser.add_argument("--zhipu-api-url", default="", help="Save ZHIPU_API_URL.")
-    setup_parser.add_argument("--zhipu-search-engine", default="", help="Save ZHIPU_SEARCH_ENGINE.")
     setup_parser.add_argument("--jina-key", default="", help="Save JINA_API_KEY.")
     setup_parser.add_argument("--jina-reader-api-url", default="", help="Save JINA_READER_API_URL.")
     setup_parser.add_argument("--jina-respond-with", default="", help="Save JINA_RESPOND_WITH, e.g. readerlm-v2.")

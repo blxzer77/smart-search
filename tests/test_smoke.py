@@ -106,7 +106,6 @@ async def test_search_zh_current_uses_bilingual_tavily_reinforcement(monkeypatch
     monkeypatch.setenv("OPENAI_COMPATIBLE_API_KEY", "sk-test-secret")
     monkeypatch.setenv("EXA_API_KEY", "exa-secret")
     monkeypatch.setenv("TAVILY_API_KEY", "tavily-secret")
-    monkeypatch.setenv("ZHIPU_API_KEY", "zhipu-secret")
 
     async def fake_search(self, query, platform="", ctx=None):
         return "Answer."
@@ -121,12 +120,8 @@ async def test_search_zh_current_uses_bilingual_tavily_reinforcement(monkeypatch
             [service._attempt("web_search", "tavily", "ok", 0, result_count=1)],
         )
 
-    async def fail_zhipu(*args, **kwargs):
-        raise AssertionError("zhipu-search must not be used by default routing")
-
     monkeypatch.setattr(service.OpenAICompatibleSearchProvider, "search", fake_search)
     monkeypatch.setattr(service, "_run_web_search_fallback", fake_web_search)
-    monkeypatch.setattr(service, "zhipu_search", fail_zhipu)
 
     result = await service.search("今天国内 AI 新闻", validation="balanced")
 
@@ -135,4 +130,3 @@ async def test_search_zh_current_uses_bilingual_tavily_reinforcement(monkeypatch
     assert result["routing_decision"]["bilingual_query_locales"] == ["zh", "en"]
     assert len(web_queries) == 2
     assert "tavily" in result["providers_used"]
-    assert "zhipu" not in result["providers_used"]

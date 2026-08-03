@@ -4,7 +4,6 @@ from .openai_compatible import OpenAICompatibleSearchProvider
 from .xai_responses import XAIResponsesSearchProvider
 from .exa import ExaSearchProvider
 from .jina import JinaReaderProvider
-from .zhipu import ZhipuWebSearchProvider
 
 __all__ = [
     "BaseSearchProvider",
@@ -14,5 +13,4 @@ __all__ = [
     "XAIResponsesSearchProvider",
     "ExaSearchProvider",
     "JinaReaderProvider",
-    "ZhipuWebSearchProvider",
 ]
