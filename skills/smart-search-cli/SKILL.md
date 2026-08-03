@@ -120,7 +120,7 @@ Default evidence policy is `fetch_before_claim`: key claims in the final answer 
 
 Live Deep Research executor:
 
-- `smart-search research QUERY [--budget quick|standard|deep] [--locale-scope cn|en|both] [--evidence-dir PATH] [--fallback auto|off] [--dry-run] [--progress] [--format json|markdown|content] [--output PATH]` runs the staged workflow directly. Use `--dry-run` to preview plan/routing without live providers; `--progress` for stderr stage logs; `--locale-scope cn` or `en` to skip bilingual discovery when cost matters.
+- `smart-search research QUERY [--budget quick|standard|deep] [--locale-scope cn|en|both] [--evidence-dir PATH] [--fallback auto|off] [--dry-run] [--progress] [--format json|markdown|content] [--output PATH]` runs the staged workflow directly. Use `--dry-run` to preview plan/routing without live providers; `--progress` for stderr stage logs; `--locale-scope cn` or `en` to skip bilingual discovery when cost matters. Docs/API intent is precision-first (weak language/product tokens alone do not trigger). If docs discovery yields no HTTP evidence, the executor fail-opens to `web_discovery` (`stage_results` may include `fail_open_web_after_docs`).
 - Default `--fallback auto` permits same-capability fallback inside selected routes. Use `--fallback off` only for debugging or deterministic provider checks.
 - Research output includes `final_answer`, `citations`, `evidence_items`, `gap_check`, `provider_attempts`, `fallback_used`, `degraded`, `route_policy_version`, and `evidence_dir`.
 - The synthesis is evidence-only. It may cite fetched/read evidence, but it must not cite unfetched discovery candidates as proof.
