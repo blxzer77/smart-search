@@ -61,6 +61,27 @@ def make_key(capability: str, *parts: Any) -> tuple:
     return (capability, *(str(p) for p in parts))
 
 
+def cache_identity() -> str:
+    """Stable identity so TTL entries do not cross models/endpoints."""
+    from .config import config
+
+    return "|".join(
+        [
+            str(getattr(config, "xai_model", "") or ""),
+            str(getattr(config, "openai_compatible_model", "") or ""),
+            str(getattr(config, "xai_api_url", "") or ""),
+            str(getattr(config, "openai_compatible_api_url", "") or ""),
+            str(getattr(config, "exa_api_key", "") and "exa" or ""),
+            str(getattr(config, "context7_api_key", "") and "c7" or ""),
+        ]
+    )
+
+
+def make_keyed(capability: str, *parts: Any) -> tuple:
+    """make_key plus provider/model identity (use for research discovery caches)."""
+    return make_key(capability, *parts, cache_identity())
+
+
 async def cached_call(
     capability: str,
     key: tuple,

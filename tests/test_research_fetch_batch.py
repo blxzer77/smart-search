@@ -66,3 +66,33 @@ async def test_fetch_research_candidates_skips_already_fetched_urls():
     assert calls == ["https://b.example"]
     assert len(results) == 1
     assert results[0]["url"] == "https://b.example"
+
+
+@pytest.mark.asyncio
+async def test_fetch_research_candidates_isolates_per_url_errors():
+    async def fake_fetch(url, fallback="auto", preferred_order=None):
+        if "boom" in url:
+            raise RuntimeError("boom")
+        return ({"ok": True, "url": url, "provider": "test", "content": "ok"}, [])
+
+    candidates = [
+        {"url": "https://ok.example", "title": "OK"},
+        {"url": "https://boom.example", "title": "Boom"},
+        {"url": "https://also.example", "title": "Also"},
+    ]
+
+    results = await fetch_research_candidates_concurrent(
+        candidates,
+        question="q",
+        fallback_mode="auto",
+        fetched_urls=set(),
+        run_web_fetch_fallback=fake_fetch,
+        research_fetch_order=lambda question, url: ["jina"],
+        concurrency=3,
+    )
+
+    by_url = {entry["url"]: entry for entry in results}
+    assert by_url["https://ok.example"]["fetch_result"]["ok"] is True
+    assert by_url["https://also.example"]["fetch_result"]["ok"] is True
+    assert by_url["https://boom.example"]["fetch_result"] is None
+    assert by_url["https://boom.example"].get("batch_error") is True

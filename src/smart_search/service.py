@@ -753,7 +753,7 @@ async def call_tavily_search(query: str, max_results: int = 6) -> list[dict] | N
         "include_answer": False,
     }
     try:
-        async with httpx.AsyncClient(timeout=90.0) as client:
+        async with httpx.AsyncClient(timeout=config.tavily_timeout) as client:
             response = await client.post(endpoint, headers=headers, json=body)
             response.raise_for_status()
             data = response.json()

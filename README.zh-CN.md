@@ -289,7 +289,7 @@ smart-search setup --non-interactive `
 | `SMART_SEARCH_FALLBACK_MODE` | `auto` 或 `off` |
 | `SMART_SEARCH_RESEARCH_PREFERRED_PROVIDERS` | `research` 路由优先 provider CSV，只能在同 capability 内调整顺序 |
 | `SMART_SEARCH_RESEARCH_DISABLED_PROVIDERS` | `research` 禁用 provider CSV，不能改变 provider capability 边界 |
-| `SMART_SEARCH_CACHE` | `research` 进程内 provider TTL 缓存（默认 `on`；设 `off` 关闭）。分级：`web_fetch` 7 天、`docs_search` 1 小时、`web_search` 10 分钟；时效性 query 跳过 `web_search`/`docs_search` 缓存；`main_search` 永不缓存 |
+| `SMART_SEARCH_CACHE` | `research` 进程内 provider TTL 缓存（默认 `on`；设 `off` 关闭）。分级：`web_fetch` 7 天、`docs_search` 1 小时、`web_search` 10 分钟；时效性 query 跳过 `web_search`/`docs_search` 缓存；`main_search` 永不缓存。缓存键含 **模型/端点身份**（`XAI_MODEL`、OpenAI-compatible model/URL 等），换模型不会误命中旧条目 |
 | `SMART_SEARCH_CONFIG_DIR` | 指定本机配置和日志根目录 |
 | `SMART_SEARCH_EVIDENCE_DIR` | 指定 `research` 默认证据根目录 |
 

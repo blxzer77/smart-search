@@ -76,19 +76,38 @@ async def test_cached_call_disabled_via_env(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_cached_call_skips_when_ttl_none(monkeypatch):
+async def test_make_keyed_changes_when_model_changes(monkeypatch):
+    from smart_search.research_cache import make_keyed
+
+    monkeypatch.setattr("smart_search.research_cache.cache_identity", lambda: "id-a")
+    key_a = make_keyed("bilingual", "q", 5, "tavily", "auto", "both")
+    monkeypatch.setattr("smart_search.research_cache.cache_identity", lambda: "id-b")
+    key_b = make_keyed("bilingual", "q", 5, "tavily", "auto", "both")
+    assert key_a != key_b
+
+
+@pytest.mark.asyncio
+async def test_cached_call_misses_after_model_identity_change(monkeypatch):
+    from smart_search.research_cache import make_keyed
+
     monkeypatch.delenv("SMART_SEARCH_CACHE", raising=False)
     reset_cache_disabled_flag()
     research_cache._REGISTRY = _TTLCache()
 
     calls: list[str] = []
 
-    async def fake_search(query, count=5, providers="auto", fallback="auto", locale_scope="both"):
-        calls.append(query)
-        return ([{"url": "https://e.com", "provider": "tavily"}], [])
+    async def fake_search(*args, **kwargs):
+        calls.append("x")
+        return ([{"url": "https://e.com"}], [])
 
-    key = make_key("bilingual", "今天新闻", 5, "tavily", "auto", "both")
-    await cached_call("web_search", key, None, fake_search, "今天新闻", count=5, providers="tavily", fallback="auto", locale_scope="both")
-    await cached_call("web_search", key, None, fake_search, "今天新闻", count=5, providers="tavily", fallback="auto", locale_scope="both")
+    monkeypatch.setattr("smart_search.research_cache.cache_identity", lambda: "m1")
+    key1 = make_keyed("bilingual", "q", 5, "tavily", "auto", "both")
+    await cached_call("web_search", key1, CACHE_TTL_BY_CAPABILITY["web_search"], fake_search)
+    await cached_call("web_search", key1, CACHE_TTL_BY_CAPABILITY["web_search"], fake_search)
+    assert len(calls) == 1
 
+    monkeypatch.setattr("smart_search.research_cache.cache_identity", lambda: "m2")
+    key2 = make_keyed("bilingual", "q", 5, "tavily", "auto", "both")
+    await cached_call("web_search", key2, CACHE_TTL_BY_CAPABILITY["web_search"], fake_search)
     assert len(calls) == 2
+    assert key1 != key2

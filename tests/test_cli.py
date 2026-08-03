@@ -438,7 +438,7 @@ def test_research_command_uses_service_and_outputs_json(monkeypatch, capsys, tmp
             "provider_attempts": [],
             "fallback_used": False,
             "degraded": False,
-            "route_policy_version": "research-router-v1",
+            "route_policy_version": cli.service.RESEARCH_ROUTE_POLICY_VERSION,
             "evidence_dir": evidence_dir,
         }
 
@@ -475,7 +475,7 @@ def test_research_markdown_and_content_output(monkeypatch, capsys):
             "gap_check": {"gaps": []},
             "fallback_used": True,
             "degraded": False,
-            "route_policy_version": "research-router-v1",
+            "route_policy_version": cli.service.RESEARCH_ROUTE_POLICY_VERSION,
             "evidence_dir": "C:/tmp/evidence",
         }
 
