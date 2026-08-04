@@ -1,0 +1,5 @@
+data: {"choices":[{"delta":{"content":"recorded"}}]}
+
+data: {"choices":[{"delta":{"content":" stream"}}]}
+
+data: [DONE]

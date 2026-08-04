@@ -27,6 +27,7 @@
   "scripts": {
     "postinstall": "node npm/scripts/postinstall.js",
     "test": "node npm/scripts/test.js",
+    "test:fast": "node -e \"process.env.SMART_SEARCH_SKIP_EDITABLE_REINSTALL='1';require('./npm/scripts/test.js')\"",
     "set-version": "node npm/scripts/set-package-version.js",
     "sync:python-version": "node npm/scripts/sync-python-version.js",
     "version": "node npm/scripts/sync-python-version.js && git add pyproject.toml package.json package-lock.json",

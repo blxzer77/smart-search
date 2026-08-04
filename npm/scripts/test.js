@@ -52,6 +52,31 @@ function runNpm(args) {
   run("npm", args, { shell: process.platform === "win32" });
 }
 
+function pythonImportOk(modules) {
+  const probe = spawnSync(
+    pythonPath,
+    ["-c", `import ${modules.join(",")}`],
+    { cwd: packageRoot, windowsHide: true }
+  );
+  return !probe.error && probe.status === 0;
+}
+
+/**
+ * Editable reinstall is the slow path. Skip when:
+ * - SMART_SEARCH_SKIP_EDITABLE_REINSTALL=1 (CI / local fast lane), or
+ * - SMART_SEARCH_FORCE_EDITABLE_REINSTALL is unset and pytest+package already importable.
+ * Force with SMART_SEARCH_FORCE_EDITABLE_REINSTALL=1.
+ */
+function shouldInstallEditable() {
+  if (process.env.SMART_SEARCH_FORCE_EDITABLE_REINSTALL === "1") {
+    return true;
+  }
+  if (process.env.SMART_SEARCH_SKIP_EDITABLE_REINSTALL === "1") {
+    return false;
+  }
+  return !pythonImportOk(["pytest", "pytest_asyncio", "smart_search"]);
+}
+
 if (!fs.existsSync(pythonPath)) {
   console.error("Missing .smart-search-python runtime. Run npm install first.");
   process.exit(1);
@@ -65,7 +90,19 @@ const testEnv = {
   TEMP: pytestTmp,
 };
 
-run(pythonPath, ["-m", "pip", "install", "--disable-pip-version-check", "-e", ".[dev]"]);
+if (shouldInstallEditable()) {
+  run(pythonPath, ["-m", "pip", "install", "--disable-pip-version-check", "-e", ".[dev]"]);
+} else if (!pythonImportOk(["pytest", "pytest_asyncio", "smart_search"])) {
+  console.error(
+    "Editable install skipped but pytest/smart_search are not importable. " +
+      "Run without SMART_SEARCH_SKIP_EDITABLE_REINSTALL, or install with: " +
+      "python -m pip install -e \".[dev]\""
+  );
+  process.exit(1);
+} else {
+  console.log("Skipping editable reinstall (runtime already has pytest + smart_search).");
+}
+
 run(pythonPath, ["-m", "pytest"], { env: testEnv });
 run(process.execPath, ["npm/scripts/test-wrapper-repair.js"]);
 run(process.execPath, ["npm/bin/smart-search.js", "--help"]);
