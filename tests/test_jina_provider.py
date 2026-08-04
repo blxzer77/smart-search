@@ -10,6 +10,7 @@ class FakeJinaClient:
     calls = []
     response: httpx.Response | None = None
     exception: Exception | None = None
+    response_queue: list | None = None
 
     def __init__(self, timeout, follow_redirects=True):
         self.timeout = timeout
@@ -23,9 +24,24 @@ class FakeJinaClient:
 
     async def get(self, url, headers):
         self.__class__.calls.append({"url": url, "headers": headers, "timeout": self.timeout})
+        if self.__class__.response_queue is not None:
+            if not self.__class__.response_queue:
+                raise AssertionError("FakeJinaClient response_queue exhausted")
+            item = self.__class__.response_queue.pop(0)
+            if isinstance(item, Exception):
+                raise item
+            return item
         if self.__class__.exception:
             raise self.__class__.exception
         return self.__class__.response
+
+
+class InstantWait:
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def __call__(self, retry_state):
+        return 0
 
 
 @pytest.fixture(autouse=True)
@@ -33,6 +49,7 @@ def reset_fake_client():
     FakeJinaClient.calls = []
     FakeJinaClient.response = None
     FakeJinaClient.exception = None
+    FakeJinaClient.response_queue = None
 
 
 @pytest.mark.asyncio
@@ -137,3 +154,23 @@ async def test_jina_reader_timeout_is_timeout_error(monkeypatch):
 
     assert data["ok"] is False
     assert data["error_type"] == "timeout"
+
+
+@pytest.mark.asyncio
+async def test_jina_reader_retries_transient_503_then_succeeds(monkeypatch):
+    monkeypatch.setenv("SMART_SEARCH_RETRY_MAX_ATTEMPTS", "2")
+    monkeypatch.setattr("smart_search.providers.jina._WaitWithRetryAfter", InstantWait)
+    monkeypatch.setattr("smart_search.providers.jina.httpx.AsyncClient", FakeJinaClient)
+
+    req = httpx.Request("GET", "https://r.jina.ai/https://example.com")
+    FakeJinaClient.response_queue = [
+        httpx.Response(503, text="busy", request=req),
+        httpx.Response(200, text="Title: Recovered\n\nok", request=req),
+    ]
+
+    provider = JinaReaderProvider("https://r.jina.ai", "jina-secret")
+    data = json.loads(await provider.fetch("https://example.com"))
+
+    assert data["ok"] is True
+    assert data["content"].startswith("Title: Recovered")
+    assert len(FakeJinaClient.calls) == 2

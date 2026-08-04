@@ -28,6 +28,14 @@ jobs:
       - name: Install npm package and isolated Python runtime
         run: npm ci
 
+      - name: Install Python test extras once (Unix)
+        if: runner.os != 'Windows'
+        run: .smart-search-python/bin/python -m pip install --disable-pip-version-check -e ".[dev]"
+
+      - name: Install Python test extras once (Windows)
+        if: runner.os == 'Windows'
+        run: .smart-search-python\Scripts\python.exe -m pip install --disable-pip-version-check -e ".[dev]"
+
       - name: Compile Python sources (Unix)
         if: runner.os != 'Windows'
         run: .smart-search-python/bin/python -m compileall -q src tests
@@ -37,6 +45,8 @@ jobs:
         run: .smart-search-python\Scripts\python.exe -m compileall -q src tests
 
       - name: Run npm wrapper test gate
+        env:
+          SMART_SEARCH_SKIP_EDITABLE_REINSTALL: "1"
         run: npm test
 
       - name: Pack dry run
