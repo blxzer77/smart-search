@@ -427,7 +427,10 @@ Upgrade:
 npm install -g @blxzer/smart-search@0.2.0
 # or
 pip install -U smart-search
+smart-search --version   # expect 0.2.0
 ```
+
+Trellis / `@blxzer/cursor-trellis` ≥ 0.3.5 depends on `@blxzer/smart-search@^0.2.0` (no Zhipu; External-knowledge gate in Trellis docs).
 
 ### v0.1.15
 

@@ -452,7 +452,10 @@ GitHub Actions 在 `ubuntu-latest` 与 `windows-latest` 上运行相同门禁（
 npm install -g @blxzer/smart-search@0.2.0
 # 或
 pip install -U smart-search
+smart-search --version   # 预期 0.2.0
 ```
+
+Trellis / `@blxzer/cursor-trellis` ≥ 0.3.5 依赖 `@blxzer/smart-search@^0.2.0`（无智谱；Trellis 文档含 External-knowledge gate）。
 
 ### v0.1.15
 
