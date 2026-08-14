@@ -12,6 +12,7 @@ build/
 logs/
 .pytest_cache/
 .pytest-tmp/
+.tmp-pytest/
 node_modules/
 *.tgz
 .agent/
