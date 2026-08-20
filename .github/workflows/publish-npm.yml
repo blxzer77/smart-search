@@ -120,6 +120,8 @@ jobs:
 
       - name: Publish to npm
         if: steps.stable-bump.outputs.skip != 'true' && steps.npm-version.outputs.published != 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --access public --provenance --tag "${{ steps.release.outputs.tag }}"
 
       - name: Skip existing npm version
